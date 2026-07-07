@@ -187,9 +187,10 @@ export class RoaringBitmap64 {
 
   // ---- add / remove / contains ----------------------------------------
 
-  /** Add a single value. */
-  add(value: bigint | number): void {
+  /** Add a single value. Returns `this` for chaining. */
+  add(value: bigint | number): this {
     roaring64_bitmap_add(this.#ptr, BigInt(value));
+    return this;
   }
 
   /** Add a single value. Returns `true` if newly inserted. */

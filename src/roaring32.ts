@@ -227,9 +227,10 @@ export class RoaringBitmap32 {
 
   // ---- add / remove / contains ----------------------------------------
 
-  /** Add a single value. */
-  add(value: number): void {
+  /** Add a single value. Returns `this` for chaining. */
+  add(value: number): this {
     roaring_bitmap_add(this.#ptr, value);
+    return this;
   }
 
   /** Add a single value. Returns `true` if the value was newly inserted. */
