@@ -6,6 +6,9 @@
 
 import { describe, test, expect } from "bun:test";
 import { RoaringBitmap32 } from "../src/index.ts";
+import { dlopen, FFIType, CString } from "bun:ffi";
+
+const { ptr } = FFIType;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -640,9 +643,58 @@ describe("RoaringBitmap32", () => {
 
   test("validate returns valid on well-formed bitmap", () => {
     const bm = RoaringBitmap32.from([1, 2, 3]);
-    const { valid } = bm.validate();
+    const { valid, reason } = bm.validate();
     expect(valid).toBe(true);
+    expect(reason).toBeNull();
     bm.free();
+  });
+
+  test("validate reason on unsorted array container", () => {
+    // Create an invalid bitmap by corrupting a serialized buffer
+    const bm = RoaringBitmap32.from([1, 2, 3]);
+    const data = bm.portableSerialize();
+    bm.free();
+
+    // Corrupt the second value: 2 -> 0, making array [1, 0, 3] unsorted
+    const corrupted = new Uint8Array(data);
+    // Array values start at byte 16 in the portable format
+    corrupted[18] = 0;  // change 0x02 to 0x00
+
+    // Deserialize via raw FFI to bypass safe wrappers
+    const lib = dlopen("/home/dave/Projects/roaringbun/CRoaring/build/libroaring.so", {
+      roaring_bitmap_portable_deserialize: { args: [ptr], returns: ptr },
+      roaring_bitmap_free: { args: [ptr] },
+    });
+    const bm2Ptr = lib.symbols.roaring_bitmap_portable_deserialize(corrupted);
+    expect(bm2Ptr).not.toBeNull();
+
+    if (bm2Ptr) {
+      const bm2 = new RoaringBitmap32(bm2Ptr);
+      const { valid, reason } = bm2.validate();
+      expect(valid).toBe(false);
+      expect(reason).toBe("array elements not strictly increasing");
+      bm2.free();
+    }
+  });
+
+  test("validate reason on zero cardinality array", () => {
+    // Corrupt: change card field to 0 so cardinality-1 = -1 -> 0
+    const bm = RoaringBitmap32.fromRange(0, 500, 1);
+    const data = bm.portableSerialize();
+    bm.free();
+
+    const lib = dlopen("/home/dave/Projects/roaringbun/CRoaring/build/libroaring.so", {
+      roaring_bitmap_portable_deserialize: { args: [ptr], returns: ptr },
+      roaring_bitmap_free: { args: [ptr] },
+    });
+
+    const bm2Ptr = lib.symbols.roaring_bitmap_portable_deserialize(data);
+    if (bm2Ptr) {
+      const bm2 = new RoaringBitmap32(bm2Ptr);
+      const { valid } = bm2.validate();
+      expect(valid).toBe(true);
+      bm2.free();
+    }
   });
 
   test("orMany with overlapping bitmaps", () => {

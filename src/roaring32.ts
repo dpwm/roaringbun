@@ -7,6 +7,8 @@
  * `.free()` is called explicitly.
  */
 
+import { CString } from "bun:ffi";
+
 import {
   roaring_bitmap_create,
   roaring_bitmap_create_with_capacity,
@@ -686,13 +688,23 @@ export class RoaringBitmap32 {
 
   /**
    * Internal consistency check.
+   * Walks the bitmap's internal structure and verifies invariants:
+   *   - containers are sorted by key
+   *   - array containers hold sorted, unique values
+   *   - run containers have sorted, non-overlapping runs
+   *   - bitset containers have the right structure
+   *   - typecode flags match the actual container type
+   *   - cardinalities are consistent
+   *
    * Returns `{ valid, reason }` where `reason` is `null` when valid.
+   * Useful after deserializing untrusted data or after lazy operations.
    */
   validate(): { valid: boolean; reason: string | null } {
-    // FIXME: const char **reason is not directly accessible via FFI
-    // For now we pass null and just get the bool
-    const valid = roaring_bitmap_internal_validate(this.#ptr, 0);
-    return { valid, reason: null };
+    const reasonBuf = new BigUint64Array(1);
+    const valid = roaring_bitmap_internal_validate(this.#ptr, reasonBuf);
+    const reasonPtr = Number(reasonBuf[0]);
+    const reason = reasonPtr !== 0 ? String(new CString(reasonPtr)) : null;
+    return { valid, reason };
   }
 
   // ---- iteration & Set compatibility ---------------------------------

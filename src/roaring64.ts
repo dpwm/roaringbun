@@ -5,6 +5,8 @@
  * and frees it via FinalizationRegistry or explicit `.free()`.
  */
 
+import { CString } from "bun:ffi";
+
 import {
   roaring64_bitmap_create,
   roaring64_bitmap_free,
@@ -526,9 +528,17 @@ export class RoaringBitmap64 {
     return readStats64(buf);
   }
 
+  /**
+   * Internal consistency check.
+   * Walks the bitmap's internal structure and verifies invariants.
+   * Returns `{ valid, reason }` where `reason` is `null` when valid.
+   */
   validate(): { valid: boolean; reason: string | null } {
-    const valid = roaring64_bitmap_internal_validate(this.#ptr, 0);
-    return { valid, reason: null };
+    const reasonBuf = new BigUint64Array(1);
+    const valid = roaring64_bitmap_internal_validate(this.#ptr, reasonBuf);
+    const reasonPtr = Number(reasonBuf[0]);
+    const reason = reasonPtr !== 0 ? String(new CString(reasonPtr)) : null;
+    return { valid, reason };
   }
 
   // ---- iteration & Set compatibility ---------------------------------
