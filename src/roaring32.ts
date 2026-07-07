@@ -1109,6 +1109,11 @@ export class RoaringBitmap32 {
     return `RoaringBitmap32(${n}) { ${preview} }`;
   }
 
+  /** Release resources when used with `using` statements. */
+  [Symbol.dispose](): void {
+    this.free();
+  }
+
   [Symbol.for("nodejs.util.inspect.custom")](): string {
     return this.toString();
   }
