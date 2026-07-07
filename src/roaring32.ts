@@ -248,9 +248,19 @@ export class RoaringBitmap32 {
     roaring_bitmap_add_range(this.#ptr, min, max);
   }
 
-  /** Remove a single value. */
-  remove(value: number): void {
-    roaring_bitmap_remove(this.#ptr, value);
+  /**
+   * Remove a single value (Set-compatible name).
+   * Returns `true` if the value was present and removed.
+   */
+  delete(value: number): boolean {
+    const prev = roaring_bitmap_contains(this.#ptr, value);
+    if (prev) roaring_bitmap_remove(this.#ptr, value);
+    return prev;
+  }
+
+  /** Remove a single value (alias for `delete`). */
+  remove(value: number): boolean {
+    return this.delete(value);
   }
 
   /** Remove a single value. Returns `true` if the value was present. */
@@ -333,28 +343,60 @@ export class RoaringBitmap32 {
 
   // ---- set operations (returning new bitmap) --------------------------
 
-  /** Intersection: elements present in both `this` and `other`. */
-  and(other: RoaringBitmap32): RoaringBitmap32 {
+  /**
+   * Returns a new bitmap with elements present in both `this` and `other`.
+   * (Set-compatible name; also available as `and`.)
+   */
+  intersection(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_and(this.#ptr, other.#ptr);
     return new RoaringBitmap32(ptr);
   }
 
-  /** Union: elements present in either `this` or `other`. */
-  or(other: RoaringBitmap32): RoaringBitmap32 {
+  /** @alias intersection */
+  and(other: RoaringBitmap32): RoaringBitmap32 {
+    return this.intersection(other);
+  }
+
+  /**
+   * Returns a new bitmap with elements present in either `this` or `other`.
+   * (Set-compatible name; also available as `or`.)
+   */
+  union(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_or(this.#ptr, other.#ptr);
     return new RoaringBitmap32(ptr);
   }
 
-  /** Symmetric difference (XOR): elements present in exactly one bitmap. */
-  xor(other: RoaringBitmap32): RoaringBitmap32 {
+  /** @alias union */
+  or(other: RoaringBitmap32): RoaringBitmap32 {
+    return this.union(other);
+  }
+
+  /**
+   * Returns a new bitmap with elements present in exactly one of `this` or `other`.
+   * (Set-compatible name; also available as `xor`.)
+   */
+  symmetricDifference(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_xor(this.#ptr, other.#ptr);
     return new RoaringBitmap32(ptr);
   }
 
-  /** Difference (ANDNOT): elements in `this` but not in `other`. */
-  andnot(other: RoaringBitmap32): RoaringBitmap32 {
+  /** @alias symmetricDifference */
+  xor(other: RoaringBitmap32): RoaringBitmap32 {
+    return this.symmetricDifference(other);
+  }
+
+  /**
+   * Returns a new bitmap with elements in `this` but not in `other`.
+   * (Set-compatible name; also available as `andnot`.)
+   */
+  difference(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_andnot(this.#ptr, other.#ptr);
     return new RoaringBitmap32(ptr);
+  }
+
+  /** @alias difference */
+  andnot(other: RoaringBitmap32): RoaringBitmap32 {
+    return this.difference(other);
   }
 
   // ---- set operation cardinalities ------------------------------------
@@ -382,6 +424,14 @@ export class RoaringBitmap32 {
   /** `true` if the two bitmaps have any element in common. */
   intersects(other: RoaringBitmap32): boolean {
     return roaring_bitmap_intersect(this.#ptr, other.#ptr);
+  }
+
+  /**
+   * `true` if the two bitmaps have no element in common (Set-compatible).
+   * Equivalent to `!intersects(other)`.
+   */
+  isDisjointFrom(other: RoaringBitmap32): boolean {
+    return !roaring_bitmap_intersect(this.#ptr, other.#ptr);
   }
 
   /** `true` if the bitmap intersects `[min, max)`. */
@@ -452,14 +502,27 @@ export class RoaringBitmap32 {
     return roaring_bitmap_equals(this.#ptr, other.#ptr);
   }
 
-  /** `true` if all elements of `this` are also in `other`. */
-  isSubset(other: RoaringBitmap32): boolean {
+  /**
+   * `true` if all elements of `this` are also in `other`.
+   * (Set-compatible name; also available as `isSubset`.)
+   */
+  isSubsetOf(other: RoaringBitmap32): boolean {
     return roaring_bitmap_is_subset(this.#ptr, other.#ptr);
   }
 
-  /** `true` if `this` is a strict subset of `other`. */
-  isStrictSubset(other: RoaringBitmap32): boolean {
+  /** @alias isSubsetOf */
+  isSubset(other: RoaringBitmap32): boolean {
+    return this.isSubsetOf(other);
+  }
+
+  /** `true` if `this` is a proper (strict) subset of `other`. */
+  isProperSubsetOf(other: RoaringBitmap32): boolean {
     return roaring_bitmap_is_strict_subset(this.#ptr, other.#ptr);
+  }
+
+  /** @alias isProperSubsetOf */
+  isStrictSubset(other: RoaringBitmap32): boolean {
+    return this.isProperSubsetOf(other);
   }
 
   // ---- flip / offset --------------------------------------------------
@@ -682,11 +745,11 @@ export class RoaringBitmap32 {
   }
 
   /**
-   * Returns `true` if the bitmap is a superset of `other`.
-   * (Equivalent to `other.isSubset(this)`.)
+   * `true` if all elements of `other` are also in `this`.
+   * (Set-compatible name.)
    */
-  isSuperset(other: RoaringBitmap32): boolean {
-    return other.isSubset(this);
+  isSupersetOf(other: RoaringBitmap32): boolean {
+    return other.isSubsetOf(this);
   }
 
   // ---- static constructors --------------------------------------------
