@@ -1,0 +1,5 @@
+[submodule "CRoaring"]
+	path = CRoaring
+	url = https://github.com/RoaringBitmap/CRoaring.git
+	shallow = true
+	branch = v4.7.2
