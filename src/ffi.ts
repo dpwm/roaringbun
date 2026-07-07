@@ -3,21 +3,40 @@
  *
  * Maps each C function in the CRoaring public API to a JS-callable
  * function via `bun:ffi`'s `dlopen`.
- *
- * The shared library is expected at a path relative to this module.
  */
 
 import { dlopen, FFIType, ptr, read, toArrayBuffer, suffix } from "bun:ffi";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 
 // ---- helpers -----------------------------------------------------------
 
-/** Resolve the path to libroaring.so / libroaring.dylib */
+/**
+ * Resolve the path to libroaring shared library.
+ *
+ * Resolution order:
+ *   1. `prebuilt/<platform>-<arch>/libroaring.so` — prebuilt binary
+ *      shipped with the npm package
+ *   2. `CRoaring/build/libroaring.so` — local development build
+ */
 function libraryPath(): string {
   const dir = path.dirname(fileURLToPath(import.meta.url));
-  // Walk up from src/ to the CRoaring/build directory
-  const buildDir = path.resolve(dir, "..", "CRoaring", "build");
+  const root = path.resolve(dir, "..");
+
+  // Prebuilt binary for the current platform
+  const plat = process.platform;
+  const arch = process.arch;
+  const prebuiltDir = path.join(root, "prebuilt", `${plat}-${arch}`);
+  const prebuiltPath = path.join(prebuiltDir, `libroaring.${suffix}`);
+
+  // Prebuilt binary shipped with npm package
+  if (existsSync(prebuiltPath)) {
+    return prebuiltPath;
+  }
+
+  // Fallback: local development build
+  const buildDir = path.resolve(root, "CRoaring", "build");
   return path.join(buildDir, `libroaring.${suffix}`);
 }
 

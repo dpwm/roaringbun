@@ -3,4 +3,5 @@ node_modules/
 *.so
 *.dylib
 *.dll
+!prebuilt/**/*.so
 CRoaring/build/

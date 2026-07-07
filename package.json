@@ -2,9 +2,17 @@
   "name": "roaringbun",
   "version": "0.1.0",
   "description": "Bun FFI bindings to CRoaring (Roaring Bitmaps)",
-  "module": "src/index.ts",
   "type": "module",
-  "main": "src/index.ts",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "types": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target=bun",
     "prebuild": "cd CRoaring/build && cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_ROARING_TESTS=OFF && cmake --build . -j$(nproc)",
@@ -14,7 +22,18 @@
     "@types/bun": "latest",
     "typescript": "^5"
   },
-  "files": ["src", "dist"],
+  "files": [
+    "src",
+    "prebuilt",
+    "README.md",
+    "LICENSE"
+  ],
   "license": "MIT",
-  "keywords": ["roaring", "bitmap", "bitset", "ffi", "bun"]
+  "keywords": [
+    "roaring",
+    "bitmap",
+    "bitset",
+    "ffi",
+    "bun"
+  ]
 }
