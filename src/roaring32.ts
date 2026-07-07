@@ -80,6 +80,10 @@ import {
   roaring_bitmap_repair_after_lazy,
   ptr as toPtr,
   toArrayBuffer,
+  read,
+  roaring_iterator_create,
+  roaring_uint32_iterator_free,
+  roaring_uint32_iterator_advance,
 } from "./ffi.ts";
 
 // ---- helpers -----------------------------------------------------------
@@ -130,6 +134,49 @@ export interface RoaringStatistics {
 
 export interface RoaringBitmap32Opts {
   capacity?: number;
+}
+
+// ---- constants (roaring_uint32_iterator_t struct layout) ---------------
+// Verified on x86_64 Linux (System V ABI):
+//   parent(ptr.8) + container(ptr.8) + typecode(u8.1) + pad(3)
+//   + container_index(i32.4) + highbits(u32.4) + container_it.index(i32.4)
+//   + current_value(u32.4) + has_value(u8.1) + pad(3)  =  40 bytes
+const ITER32_CURVAL_OFF = 32;
+const ITER32_HASVAL_OFF = 36;
+
+// ---- 32-bit iterator ---------------------------------------------------
+
+export class RoaringBitmap32Iterator implements Iterator<number> {
+  /** Pointer to the C `roaring_uint32_iterator_t`. 0 once exhausted. */
+  #it: number;
+  #started = false;
+
+  constructor(bitmap: RoaringBitmap32) {
+    this.#it = roaring_iterator_create(bitmap.ptr);
+  }
+
+  next(): IteratorResult<number> {
+    if (this.#it === 0) return { value: undefined as any, done: true };
+
+    if (!this.#started) {
+      this.#started = true;
+      if (read.u8(this.#it, ITER32_HASVAL_OFF)) {
+        return { value: read.u32(this.#it, ITER32_CURVAL_OFF), done: false };
+      }
+    } else {
+      if (roaring_uint32_iterator_advance(this.#it)) {
+        return { value: read.u32(this.#it, ITER32_CURVAL_OFF), done: false };
+      }
+    }
+
+    roaring_uint32_iterator_free(this.#it);
+    this.#it = 0;
+    return { value: undefined as any, done: true };
+  }
+
+  [Symbol.iterator](): RoaringBitmap32Iterator {
+    return this;
+  }
 }
 
 // ---- FinalizationRegistry ----------------------------------------------
@@ -582,6 +629,64 @@ export class RoaringBitmap32 {
     // For now we pass null and just get the bool
     const valid = roaring_bitmap_internal_validate(this.#ptr, 0);
     return { valid, reason: null };
+  }
+
+  // ---- iteration & Set compatibility ---------------------------------
+
+  /**
+   * Returns the number of elements as a JavaScript `number`.
+   * For bitmaps with > 2^53 elements, use `cardinality` (which returns `bigint`).
+   */
+  get size(): number {
+    return Number(roaring_bitmap_get_cardinality(this.#ptr));
+  }
+
+  /** Iterate over all values in ascending order. */
+  *[Symbol.iterator](): IterableIterator<number> {
+    const it = new RoaringBitmap32Iterator(this);
+    let result = it.next();
+    while (!result.done) {
+      yield result.value;
+      result = it.next();
+    }
+  }
+
+  /** Same as `[Symbol.iterator]()`. */
+  values(): IterableIterator<number> {
+    return this[Symbol.iterator]();
+  }
+
+  /** Alias for `values()` (Set compatibility). */
+  keys(): IterableIterator<number> {
+    return this.values();
+  }
+
+  /**
+   * Returns an iterable of `[value, value]` pairs (Set compatibility).
+   *
+   * ```ts
+   * for (const [k, v] of bitmap.entries()) { ... }
+   * ```
+   */
+  *entries(): IterableIterator<[number, number]> {
+    for (const v of this) {
+      yield [v, v];
+    }
+  }
+
+  /** Calls `callbackfn` for each value in the bitmap (Set compatibility). */
+  forEach(callbackfn: (value: number, key: number, set: RoaringBitmap32) => void, thisArg?: any): void {
+    for (const v of this) {
+      callbackfn.call(thisArg, v, v, this);
+    }
+  }
+
+  /**
+   * Returns `true` if the bitmap is a superset of `other`.
+   * (Equivalent to `other.isSubset(this)`.)
+   */
+  isSuperset(other: RoaringBitmap32): boolean {
+    return other.isSubset(this);
   }
 
   // ---- static constructors --------------------------------------------

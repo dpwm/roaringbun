@@ -61,6 +61,11 @@ import {
   roaring64_bitmap_internal_validate,
   roaring64_bitmap_move_from_roaring32,
   ptr as toPtr,
+  roaring64_iterator_create,
+  roaring64_iterator_free,
+  roaring64_iterator_has_value,
+  roaring64_iterator_value,
+  roaring64_iterator_advance,
 } from "./ffi.ts";
 import { RoaringBitmap32 } from "./roaring32.ts";
 
@@ -105,6 +110,41 @@ export interface Roaring64Statistics {
   maxValue: bigint;
   minValue: bigint;
   cardinality: bigint;
+}
+
+// ---- 64-bit iterator ---------------------------------------------------
+
+export class RoaringBitmap64Iterator implements Iterator<bigint> {
+  /** Pointer to the C `roaring64_iterator_t`. 0 once exhausted. */
+  #it: number;
+  #started = false;
+
+  constructor(bitmap: RoaringBitmap64) {
+    this.#it = roaring64_iterator_create(bitmap.ptr);
+  }
+
+  next(): IteratorResult<bigint> {
+    if (this.#it === 0) return { value: undefined as any, done: true };
+
+    if (!this.#started) {
+      this.#started = true;
+      if (roaring64_iterator_has_value(this.#it)) {
+        return { value: roaring64_iterator_value(this.#it), done: false };
+      }
+    } else {
+      if (roaring64_iterator_advance(this.#it)) {
+        return { value: roaring64_iterator_value(this.#it), done: false };
+      }
+    }
+
+    roaring64_iterator_free(this.#it);
+    this.#it = 0;
+    return { value: undefined as any, done: true };
+  }
+
+  [Symbol.iterator](): RoaringBitmap64Iterator {
+    return this;
+  }
 }
 
 // ---- FinalizationRegistry ----------------------------------------------
@@ -422,6 +462,55 @@ export class RoaringBitmap64 {
   validate(): { valid: boolean; reason: string | null } {
     const valid = roaring64_bitmap_internal_validate(this.#ptr, 0);
     return { valid, reason: null };
+  }
+
+  // ---- iteration & Set compatibility ---------------------------------
+
+  /**
+   * Returns the number of elements as a JavaScript `number`.
+   * For bitmaps with > 2^53 elements, use `cardinality` (which returns `bigint`).
+   */
+  get size(): number {
+    return Number(roaring64_bitmap_get_cardinality(this.#ptr));
+  }
+
+  /** Iterate over all values in ascending order. */
+  *[Symbol.iterator](): IterableIterator<bigint> {
+    const it = new RoaringBitmap64Iterator(this);
+    let result = it.next();
+    while (!result.done) {
+      yield result.value;
+      result = it.next();
+    }
+  }
+
+  /** Same as `[Symbol.iterator]()`. */
+  values(): IterableIterator<bigint> {
+    return this[Symbol.iterator]();
+  }
+
+  /** Alias for `values()` (Set compatibility). */
+  keys(): IterableIterator<bigint> {
+    return this.values();
+  }
+
+  /** Yields `[value, value]` tuples (Set compatibility). */
+  *entries(): IterableIterator<[bigint, bigint]> {
+    for (const v of this) {
+      yield [v, v];
+    }
+  }
+
+  /** Calls `callbackfn` for each value in the bitmap. */
+  forEach(callbackfn: (value: bigint, key: bigint, set: RoaringBitmap64) => void, thisArg?: any): void {
+    for (const v of this) {
+      callbackfn.call(thisArg, v, v, this);
+    }
+  }
+
+  /** Returns `true` if `this` is a superset of `other`. */
+  isSuperset(other: RoaringBitmap64): boolean {
+    return other.isSubset(this);
   }
 
   // ---- static constructors --------------------------------------------

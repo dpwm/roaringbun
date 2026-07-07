@@ -151,4 +151,45 @@ console.log("has(999):", bm64_from32.has(999n));
 bm32.free();
 bm64_from32.free();
 
+// ---- iterator protocol ----
+console.log("\n=== Iterator protocol ===");
+
+const iterBm = RoaringBitmap32.from([10, 20, 30, 40, 50]);
+let sum = 0;
+for (const val of iterBm) {
+  sum += val;
+}
+console.log("for...of sum:", sum); // 150
+
+const entries = [...iterBm.entries()];
+console.log("entries:", entries); // [[10,10],[20,20],...]
+
+const values = [...iterBm.values()];
+console.log("values:", values); // [10,20,30,40,50]
+
+let count = 0;
+let forEachSum = 0;
+iterBm.forEach((v) => { count++; forEachSum += v; });
+console.log("forEach count:", count, "sum:", forEachSum);
+
+console.log("size:", iterBm.size); // 5
+
+console.log("keys:", [...iterBm.keys()]);
+
+// --- 64-bit iterator ---
+const iterBm64 = RoaringBitmap64.from([100n, 200n, 300n]);
+const vals64: bigint[] = [];
+for (const v of iterBm64) {
+  vals64.push(v);
+}
+console.log("64-bit iter:", vals64.map(String));
+
+let sum64 = 0n;
+iterBm64.forEach((v) => { sum64 += v; });
+console.log("64-bit forEach sum:", String(sum64));
+console.log("64-bit size:", iterBm64.size);
+
+iterBm.free();
+iterBm64.free();
+
 console.log("\n✅ All smoke tests passed!");

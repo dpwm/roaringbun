@@ -373,6 +373,19 @@ export const roaring_bitmap_lazy_xor                = symbols.roaring_bitmap_laz
 export const roaring_bitmap_lazy_xor_inplace        = symbols.roaring_bitmap_lazy_xor_inplace;
 export const roaring_bitmap_repair_after_lazy       = symbols.roaring_bitmap_repair_after_lazy;
 
+// 32-bit iterator
+export const roaring_iterator_create                = symbols.roaring_iterator_create;
+export const roaring_iterator_init                  = symbols.roaring_iterator_init;
+export const roaring_iterator_init_last             = symbols.roaring_iterator_init_last;
+export const roaring_uint32_iterator_free           = symbols.roaring_uint32_iterator_free;
+export const roaring_uint32_iterator_advance        = symbols.roaring_uint32_iterator_advance;
+export const roaring_uint32_iterator_previous       = symbols.roaring_uint32_iterator_previous;
+export const roaring_uint32_iterator_move_equalorlarger = symbols.roaring_uint32_iterator_move_equalorlarger;
+export const roaring_uint32_iterator_read           = symbols.roaring_uint32_iterator_read;
+export const roaring_uint32_iterator_skip           = symbols.roaring_uint32_iterator_skip;
+export const roaring_uint32_iterator_copy           = symbols.roaring_uint32_iterator_copy;
+export const roaring_iterate                        = symbols.roaring_iterate;
+
 // 64-bit lifecycle
 export const roaring64_bitmap_create              = symbols.roaring64_bitmap_create;
 export const roaring64_bitmap_free                = symbols.roaring64_bitmap_free;
@@ -441,3 +454,17 @@ export const roaring64_bitmap_to_uint64_array     = symbols.roaring64_bitmap_to_
 export const roaring64_bitmap_of_ptr              = symbols.roaring64_bitmap_of_ptr;
 export const roaring64_bitmap_from_range          = symbols.roaring64_bitmap_from_range;
 export const roaring64_bitmap_move_from_roaring32 = symbols.roaring64_bitmap_move_from_roaring32;
+
+// 64-bit iterator
+export const roaring64_iterator_create              = symbols.roaring64_iterator_create;
+export const roaring64_iterator_create_last         = symbols.roaring64_iterator_create_last;
+export const roaring64_iterator_free                = symbols.roaring64_iterator_free;
+export const roaring64_iterator_has_value           = symbols.roaring64_iterator_has_value;
+export const roaring64_iterator_value               = symbols.roaring64_iterator_value;
+export const roaring64_iterator_advance             = symbols.roaring64_iterator_advance;
+export const roaring64_iterator_previous            = symbols.roaring64_iterator_previous;
+export const roaring64_iterator_move_equalorlarger  = symbols.roaring64_iterator_move_equalorlarger;
+export const roaring64_iterator_read                = symbols.roaring64_iterator_read;
+export const roaring64_iterator_copy                = symbols.roaring64_iterator_copy;
+export const roaring64_iterator_reinit              = symbols.roaring64_iterator_reinit;
+export const roaring64_iterator_reinit_last         = symbols.roaring64_iterator_reinit_last;
