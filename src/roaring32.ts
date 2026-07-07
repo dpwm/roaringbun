@@ -229,31 +229,65 @@ export class RoaringBitmap32 {
 
   // ---- add / remove / contains ----------------------------------------
 
-  /** Add a single value. Returns `this` for chaining. */
+  /**
+   * Add a single value to the set.
+   *
+   * Wraps `roaring_bitmap_add`.
+   * Returns `this` for chaining.
+   *
+   * @example
+   * ```ts
+   * bitmap.add(42);
+   * bitmap.add(1).add(2).add(3);
+   * ```
+   */
   add(value: number): this {
     roaring_bitmap_add(this.#ptr, value);
     return this;
   }
 
-  /** Add a single value. Returns `true` if the value was newly inserted. */
+  /**
+   * Add a single value, returning `true` only if it wasn't already present.
+   *
+   * Wraps `roaring_bitmap_add_checked`.
+   * Useful when you need to know whether the bitmap changed.
+   */
   addChecked(value: number): boolean {
     return roaring_bitmap_add_checked(this.#ptr, value);
   }
 
-  /** Add many values at once (more efficient than repeated `add()`). */
+  /**
+   * Add many values at once.
+   *
+   * Wraps `roaring_bitmap_add_many`. More efficient than repeated
+   * calls to `add()` when adding many values, especially when the
+   * values with the same high 16 bits are grouped together.
+   *
+   * Accepts both `number[]` and `Uint32Array`.
+   */
   addMany(values: readonly number[] | Uint32Array): void {
     const buf = values instanceof Uint32Array ? values : new Uint32Array(values);
     roaring_bitmap_add_many(this.#ptr, buf.length, buf);
   }
 
-  /** Add all values in the range `[min, max)`. */
+  /**
+   * Add all values in the range `[min, max)` (half-open interval).
+   *
+   * Wraps `roaring_bitmap_add_range`. `min` is included, `max` is excluded.
+   * Equivalent to adding every integer from `min` to `max - 1`.
+   */
   addRange(min: number, max: number): void {
     roaring_bitmap_add_range(this.#ptr, min, max);
   }
 
   /**
    * Remove a single value (Set-compatible name).
-   * Returns `true` if the value was present and removed.
+   *
+   * Wraps `roaring_bitmap_contains` / `roaring_bitmap_remove`.
+   * Returns `true` if the value was present and removed, `false` if
+   * it wasn't in the set.
+   *
+   * Also available as `remove()`.
    */
   delete(value: number): boolean {
     const prev = roaring_bitmap_contains(this.#ptr, value);
@@ -266,40 +300,73 @@ export class RoaringBitmap32 {
     return this.delete(value);
   }
 
-  /** Remove a single value. Returns `true` if the value was present. */
+  /**
+   * Remove a single value, returning `true` only if it was present.
+   *
+   * Wraps `roaring_bitmap_remove_checked`.
+   * Unlike `delete`/`remove`, this returns whether the value existed
+   * before removal.
+   */
   removeChecked(value: number): boolean {
     return roaring_bitmap_remove_checked(this.#ptr, value);
   }
 
-  /** Remove many values at once. */
+  /**
+   * Remove many values at once.
+   *
+   * Wraps `roaring_bitmap_remove_many`. More efficient than repeated
+   * calls to `remove()`.
+   */
   removeMany(values: readonly number[] | Uint32Array): void {
     const buf = values instanceof Uint32Array ? values : new Uint32Array(values);
     roaring_bitmap_remove_many(this.#ptr, buf.length, buf);
   }
 
-  /** Remove all values in the range `[min, max)`. */
+  /**
+   * Remove all values in the range `[min, max)` (half-open interval).
+   *
+   * Wraps `roaring_bitmap_remove_range`. `min` is included, `max` is excluded.
+   */
   removeRange(min: number, max: number): void {
     roaring_bitmap_remove_range(this.#ptr, min, max);
   }
 
-  /** Returns `true` if `value` is in the set. */
+  /**
+   * Returns `true` if `value` is in the set.
+   *
+   * Wraps `roaring_bitmap_contains`. O(1) average, O(log n) worst case.
+   */
   has(value: number): boolean {
     return roaring_bitmap_contains(this.#ptr, value);
   }
 
-  /** Returns `true` if all values in `[min, max)` are present. */
+  /**
+   * Returns `true` if all values in the half-open range `[min, max)` are present.
+   *
+   * Wraps `roaring_bitmap_contains_range`.
+   */
   hasRange(min: number, max: number): boolean {
     return roaring_bitmap_contains_range(this.#ptr, min, max);
   }
 
-  /** Remove all elements. */
+  /**
+   * Remove all elements from the bitmap.
+   *
+   * Wraps `roaring_bitmap_clear`. The bitmap remains valid and
+   * can be reused.
+   */
   clear(): void {
     roaring_bitmap_clear(this.#ptr);
   }
 
   // ---- cardinality / queries ------------------------------------------
 
-  /** Number of elements in the bitmap. */
+  /**
+   * Number of elements in the bitmap.
+   *
+   * Wraps `roaring_bitmap_get_cardinality`. Returns a `bigint` because
+   * bitmaps can hold more than 2^53 values. Use `size` for a `number`.
+   */
   get cardinality(): bigint {
     return roaring_bitmap_get_cardinality(this.#ptr);
   }
@@ -309,19 +376,38 @@ export class RoaringBitmap32 {
     return roaring_bitmap_is_empty(this.#ptr);
   }
 
-  /** The smallest element, or `4294967295` (`UINT32_MAX`) if empty. */
+  /**
+   * The smallest element in the set.
+   *
+   * Returns `4294967295` (`UINT32_MAX`) if the bitmap is empty.
+   */
   get minimum(): number {
     return roaring_bitmap_minimum(this.#ptr);
   }
 
-  /** The largest element, or `0` if empty. */
+  /**
+   * The largest element in the set.
+   *
+   * Returns `0` if the bitmap is empty.
+   */
   get maximum(): number {
     return roaring_bitmap_maximum(this.#ptr);
   }
 
   /**
-   * Select the element at `rank` (0-based).
-   * Returns `{ value, found }` where `found` is `false` when rank >= cardinality.
+   * Return the element at the given 0-based rank (select operation).
+   *
+   * Wraps `roaring_bitmap_select`. `rank` is 0-based, so `select(0)`
+   * returns the smallest element.
+   *
+   * Returns `{ value, found }` where `found` is `false` when
+   * `rank >= cardinality`.
+   *
+   * @example
+   * ```ts
+   * const { value, found } = bitmap.select(0);
+   * if (found) console.log('smallest element:', value);
+   * ```
    */
   select(rank: number): { value: number; found: boolean } {
     const out = new Uint32Array(1);
@@ -330,8 +416,12 @@ export class RoaringBitmap32 {
   }
 
   /**
-   * Return the number of elements ≤ `value`.
-   * (0 if `value` is smaller than the smallest element)
+   * Return the number of elements less than or equal to `value`.
+   *
+   * Wraps `roaring_bitmap_rank`. Returns 0 if `value` is smaller
+   * than the smallest element. Uses a 1-based convention where
+   * ranking the smallest element returns 1 (unlike the 0-based
+   * `select`/`indexOf`).
    */
   rank(value: number): bigint {
     return roaring_bitmap_rank(this.#ptr, value);
@@ -339,6 +429,10 @@ export class RoaringBitmap32 {
 
   /**
    * Return the 0-based index of `value`, or `-1` if not present.
+   *
+   * Wraps `roaring_bitmap_get_index`. The difference from `rank` is
+   * that this returns `-1` when the value isn't in the set, while
+   * `rank` returns the count of elements ≤ value regardless.
    */
   indexOf(value: number): number {
     return Number(roaring_bitmap_get_index(this.#ptr, value));
@@ -348,6 +442,10 @@ export class RoaringBitmap32 {
 
   /**
    * Returns a new bitmap with elements present in both `this` and `other`.
+   *
+   * Wraps `roaring_bitmap_and`. The caller is responsible for freeing
+   * the returned bitmap.
+   *
    * (Set-compatible name; also available as `and`.)
    */
   intersection(other: RoaringBitmap32): RoaringBitmap32 {
@@ -362,6 +460,10 @@ export class RoaringBitmap32 {
 
   /**
    * Returns a new bitmap with elements present in either `this` or `other`.
+   *
+   * Wraps `roaring_bitmap_or`. The caller is responsible for freeing
+   * the returned bitmap.
+   *
    * (Set-compatible name; also available as `or`.)
    */
   union(other: RoaringBitmap32): RoaringBitmap32 {
@@ -376,6 +478,10 @@ export class RoaringBitmap32 {
 
   /**
    * Returns a new bitmap with elements present in exactly one of `this` or `other`.
+   *
+   * Wraps `roaring_bitmap_xor`. The caller is responsible for freeing
+   * the returned bitmap.
+   *
    * (Set-compatible name; also available as `xor`.)
    */
   symmetricDifference(other: RoaringBitmap32): RoaringBitmap32 {
@@ -390,6 +496,10 @@ export class RoaringBitmap32 {
 
   /**
    * Returns a new bitmap with elements in `this` but not in `other`.
+   *
+   * Wraps `roaring_bitmap_andnot`. The caller is responsible for freeing
+   * the returned bitmap.
+   *
    * (Set-compatible name; also available as `andnot`.)
    */
   difference(other: RoaringBitmap32): RoaringBitmap32 {
@@ -404,109 +514,186 @@ export class RoaringBitmap32 {
 
   // ---- set operation cardinalities ------------------------------------
 
-  /** Cardinality of the intersection. */
+  /**
+   * Cardinality of `this.intersection(other)` without allocating a new bitmap.
+   * Wraps `roaring_bitmap_and_cardinality`.
+   */
   andCardinality(other: RoaringBitmap32): bigint {
     return roaring_bitmap_and_cardinality(this.#ptr, other.#ptr);
   }
 
-  /** Cardinality of the union. */
+  /**
+   * Cardinality of `this.union(other)` without allocating a new bitmap.
+   * Wraps `roaring_bitmap_or_cardinality`.
+   */
   orCardinality(other: RoaringBitmap32): bigint {
     return roaring_bitmap_or_cardinality(this.#ptr, other.#ptr);
   }
 
-  /** Cardinality of the symmetric difference. */
+  /**
+   * Cardinality of `this.symmetricDifference(other)` without allocating a new bitmap.
+   * Wraps `roaring_bitmap_xor_cardinality`.
+   */
   xorCardinality(other: RoaringBitmap32): bigint {
     return roaring_bitmap_xor_cardinality(this.#ptr, other.#ptr);
   }
 
-  /** Cardinality of the difference. */
+  /**
+   * Cardinality of `this.difference(other)` without allocating a new bitmap.
+   * Wraps `roaring_bitmap_andnot_cardinality`.
+   */
   andnotCardinality(other: RoaringBitmap32): bigint {
     return roaring_bitmap_andnot_cardinality(this.#ptr, other.#ptr);
   }
 
-  /** `true` if the two bitmaps have any element in common. */
+  /**
+   * Returns `true` if the two bitmaps share any element.
+   *
+   * Wraps `roaring_bitmap_intersect`. More efficient than
+   * `intersection(other).isEmpty` because it short-circuits.
+   */
   intersects(other: RoaringBitmap32): boolean {
     return roaring_bitmap_intersect(this.#ptr, other.#ptr);
   }
 
   /**
-   * `true` if the two bitmaps have no element in common (Set-compatible).
+   * Returns `true` if the two bitmaps have no element in common.
    * Equivalent to `!intersects(other)`.
+   *
+   * (Set-compatible name.)
    */
   isDisjointFrom(other: RoaringBitmap32): boolean {
     return !roaring_bitmap_intersect(this.#ptr, other.#ptr);
   }
 
-  /** `true` if the bitmap intersects `[min, max)`. */
+  /**
+   * Returns `true` if the bitmap intersects the half-open range `[min, max)`.
+   * Wraps `roaring_bitmap_intersect_with_range`.
+   */
   intersectsWithRange(min: number, max: number): boolean {
     return roaring_bitmap_intersect_with_range(this.#ptr, min, max);
   }
 
-  /** Jaccard similarity coefficient (Tanimoto distance). */
+  /**
+   * Jaccard similarity coefficient (Tanimoto distance) between two bitmaps.
+   *
+   * Wraps `roaring_bitmap_jaccard_index`. Result is in `[0, 1]`.
+   * Returns `0` if both are empty.
+   */
   jaccardIndex(other: RoaringBitmap32): number {
     return roaring_bitmap_jaccard_index(this.#ptr, other.#ptr);
   }
 
   // ---- set operations (in-place) --------------------------------------
 
-  /** In-place intersection. `this` is modified. */
+  /**
+   * In-place intersection. Modifies `this`.
+   * Wraps `roaring_bitmap_and_inplace`.
+   */
   andInPlace(other: RoaringBitmap32): void {
     roaring_bitmap_and_inplace(this.#ptr, other.#ptr);
   }
 
-  /** In-place union. `this` is modified. */
+  /**
+   * In-place union. Modifies `this`.
+   * Wraps `roaring_bitmap_or_inplace`.
+   */
   orInPlace(other: RoaringBitmap32): void {
     roaring_bitmap_or_inplace(this.#ptr, other.#ptr);
   }
 
-  /** In-place symmetric difference. `this` is modified. */
+  /**
+   * In-place symmetric difference. Modifies `this`.
+   * Wraps `roaring_bitmap_xor_inplace`.
+   */
   xorInPlace(other: RoaringBitmap32): void {
     roaring_bitmap_xor_inplace(this.#ptr, other.#ptr);
   }
 
-  /** In-place difference. `this` is modified. */
+  /**
+   * In-place difference. Modifies `this`.
+   * Wraps `roaring_bitmap_andnot_inplace`.
+   */
   andnotInPlace(other: RoaringBitmap32): void {
     roaring_bitmap_andnot_inplace(this.#ptr, other.#ptr);
   }
 
   // ---- lazy operations ------------------------------------------------
 
-  /** Lazy union (expert). Call `repairAfterLazy()` before further use. */
+  /**
+   * Lazy union. Returns a new bitmap.
+   *
+   * Wraps `roaring_bitmap_lazy_or`. Defers cardinality computation
+   * and container-type decisions. **Must** call `repairAfterLazy()`
+   * before using the result.
+   *
+   * @param bitsetConversion - When `true`, intermediate results force
+   *   bitset conversion for faster subsequent lazy operations.
+   *
+   * @see repairAfterLazy
+   */
   lazyOr(other: RoaringBitmap32, bitsetConversion = false): RoaringBitmap32 {
     const ptr = roaring_bitmap_lazy_or(this.#ptr, other.#ptr, bitsetConversion);
     return new RoaringBitmap32(ptr);
   }
 
-  /** In-place lazy union. */
+  /**
+   * In-place lazy union. Modifies `this`.
+   *
+   * Wraps `roaring_bitmap_lazy_or_inplace`.
+   * **Must** call `repairAfterLazy()` before further use.
+   */
   lazyOrInPlace(other: RoaringBitmap32, bitsetConversion = false): void {
     roaring_bitmap_lazy_or_inplace(this.#ptr, other.#ptr, bitsetConversion);
   }
 
-  /** Lazy xor (expert). Call `repairAfterLazy()` before further use. */
+  /**
+   * Lazy symmetric difference. Returns a new bitmap.
+   *
+   * Wraps `roaring_bitmap_lazy_xor`. **Must** call `repairAfterLazy()`
+   * before using the result.
+   */
   lazyXor(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_lazy_xor(this.#ptr, other.#ptr);
     return new RoaringBitmap32(ptr);
   }
 
-  /** In-place lazy xor. */
+  /**
+   * In-place lazy symmetric difference. Modifies `this`.
+   *
+   * Wraps `roaring_bitmap_lazy_xor_inplace`.
+   * **Must** call `repairAfterLazy()` before further use.
+   */
   lazyXorInPlace(other: RoaringBitmap32): void {
     roaring_bitmap_lazy_xor_inplace(this.#ptr, other.#ptr);
   }
 
-  /** Repair after lazy operations. */
+  /**
+   * Recompute cardinalities and finalize container types after lazy operations.
+   *
+   * Wraps `roaring_bitmap_repair_after_lazy`.
+   * Required after any `lazyOr*`/`lazyXor*` call before the bitmap
+   * can be used with non-lazy operations.
+   */
   repairAfterLazy(): void {
     roaring_bitmap_repair_after_lazy(this.#ptr);
   }
 
   // ---- comparison -----------------------------------------------------
 
-  /** `true` if both bitmaps contain exactly the same elements. */
+  /**
+   * Returns `true` if both bitmaps contain exactly the same elements.
+   *
+   * Wraps `roaring_bitmap_equals`.
+   */
   equals(other: RoaringBitmap32): boolean {
     return roaring_bitmap_equals(this.#ptr, other.#ptr);
   }
 
   /**
    * `true` if all elements of `this` are also in `other`.
+   *
+   * Wraps `roaring_bitmap_is_subset`.
    * (Set-compatible name; also available as `isSubset`.)
    */
   isSubsetOf(other: RoaringBitmap32): boolean {
@@ -518,7 +705,14 @@ export class RoaringBitmap32 {
     return this.isSubsetOf(other);
   }
 
-  /** `true` if `this` is a proper (strict) subset of `other`. */
+  /**
+   * `true` if `this` is a proper (strict) subset of `other`.
+   *
+   * Wraps `roaring_bitmap_is_strict_subset`. Unlike `isSubsetOf`,
+   * returns `false` if the two bitmaps are equal.
+   *
+   * (Set-compatible name; also available as `isStrictSubset`.)
+   */
   isProperSubsetOf(other: RoaringBitmap32): boolean {
     return roaring_bitmap_is_strict_subset(this.#ptr, other.#ptr);
   }
@@ -532,21 +726,30 @@ export class RoaringBitmap32 {
 
   /**
    * Return a new bitmap with the values in `[min, max)` negated.
-   * Areas outside the range are unchanged.
+   *
+   * Wraps `roaring_bitmap_flip`. Areas outside the range are
+   * passed through unchanged. The caller frees the result.
    */
   flip(min: number, max: number): RoaringBitmap32 {
     const ptr = roaring_bitmap_flip(this.#ptr, min, max);
     return new RoaringBitmap32(ptr);
   }
 
-  /** In-place flip. */
+  /**
+   * In-place flip for the range `[min, max)`. Modifies `this`.
+   *
+   * Wraps `roaring_bitmap_flip_inplace`.
+   */
   flipInPlace(min: number, max: number): void {
     roaring_bitmap_flip_inplace(this.#ptr, min, max);
   }
 
   /**
    * Return a new bitmap with all values shifted by `offset`.
-   * Positive offset shifts values up, negative shifts down.
+   *
+   * Wraps `roaring_bitmap_add_offset`. Positive offset shifts values
+   * up, negative shifts down. Values that overflow `uint32_t` are
+   * dropped. The caller frees the result.
    */
   addOffset(offset: number): RoaringBitmap32 {
     const ptr = roaring_bitmap_add_offset(this.#ptr, offset);
@@ -555,7 +758,12 @@ export class RoaringBitmap32 {
 
   // ---- conversion -----------------------------------------------------
 
-  /** Convert the bitmap to an array of uint32 values. */
+  /**
+   * Convert the bitmap to a sorted array of uint32 values.
+   *
+   * Wraps `roaring_bitmap_to_uint32_array`. The result is always
+   * sorted in ascending order.
+   */
   toArray(): Uint32Array {
     const n = Number(roaring_bitmap_get_cardinality(this.#ptr));
     const out = new Uint32Array(n);
@@ -566,8 +774,10 @@ export class RoaringBitmap32 {
   }
 
   /**
-   * Convert a range of values to an array.
-   * Reads up to `limit` values starting from `offset`.
+   * Read a slice of the bitmap as an array.
+   *
+   * Wraps `roaring_bitmap_range_uint32_array`. Reads up to `limit`
+   * values starting from `offset`. Useful for pagination.
    */
   toRangeArray(offset: number, limit: number): { values: Uint32Array; count: number } {
     const out = new Uint32Array(limit);
@@ -577,12 +787,24 @@ export class RoaringBitmap32 {
 
   // ---- serialization (portable, cross-language) -----------------------
 
-  /** Number of bytes needed for portable serialization. */
+  /**
+   * Number of bytes required for portable serialization.
+   *
+   * Wraps `roaring_bitmap_portable_size_in_bytes`.
+   * The portable format is compatible with Java and Go
+   * implementations of RoaringBitmap.
+   */
   get portableSizeInBytes(): number {
     return Number(roaring_bitmap_portable_size_in_bytes(this.#ptr));
   }
 
-  /** Serialize to a portable (cross-language) buffer. */
+  /**
+   * Serialize to a portable (cross-language) buffer.
+   *
+   * Wraps `roaring_bitmap_portable_serialize`. The format is
+   * compatible with Java and Go RoaringBitmap implementations.
+   * Use `portableDeserialize` to restore.
+   */
   portableSerialize(): Uint8Array {
     const n = Number(roaring_bitmap_portable_size_in_bytes(this.#ptr));
     const buf = new Uint8Array(n);
@@ -590,7 +812,13 @@ export class RoaringBitmap32 {
     return buf;
   }
 
-  /** Deserialize from a portable buffer. */
+  /**
+   * Deserialize from a portable buffer.
+   *
+   * Wraps `roaring_bitmap_portable_deserialize`. Throws if the
+   * buffer does not contain a valid bitmap.
+   * For untrusted data, prefer `portableDeserializeSafe`.
+   */
   static portableDeserialize(buf: ArrayBuffer | Uint8Array): RoaringBitmap32 {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
     const ptr = roaring_bitmap_portable_deserialize(
@@ -600,7 +828,13 @@ export class RoaringBitmap32 {
     return new RoaringBitmap32(ptr);
   }
 
-  /** Safe deserialize (bounds-checked). Returns `null` on failure. */
+  /**
+   * Safe deserialize from a portable buffer (bounds-checked).
+   *
+   * Wraps `roaring_bitmap_portable_deserialize_safe`. Returns `null`
+   * on failure instead of throwing. Recommended for untrusted data.
+   * Call `validate()` on the result before use.
+   */
   static portableDeserializeSafe(buf: ArrayBuffer | Uint8Array, maxBytes: number): RoaringBitmap32 | null {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
     const ptr = roaring_bitmap_portable_deserialize_safe(
@@ -612,12 +846,22 @@ export class RoaringBitmap32 {
 
   // ---- serialization (native) -----------------------------------------
 
-  /** Number of bytes needed for native serialization. */
+  /**
+   * Number of bytes required for native serialization.
+   *
+   * Wraps `roaring_bitmap_size_in_bytes`. The native format is
+   * C-specific and not compatible with other language implementations.
+   */
   get sizeInBytes(): number {
     return Number(roaring_bitmap_size_in_bytes(this.#ptr));
   }
 
-  /** Serialize to a native (C-specific) buffer. */
+  /**
+   * Serialize to a native (C-optimized) buffer.
+   *
+   * Wraps `roaring_bitmap_serialize`. May be more compact than
+   * portable format for sparse data. Not compatible with Java/Go.
+   */
   serialize(): Uint8Array {
     const n = Number(roaring_bitmap_size_in_bytes(this.#ptr));
     const buf = new Uint8Array(n);
@@ -625,7 +869,12 @@ export class RoaringBitmap32 {
     return buf;
   }
 
-  /** Deserialize from a native buffer. */
+  /**
+   * Deserialize from a native buffer.
+   *
+   * Wraps `roaring_bitmap_deserialize`. Throws on failure.
+   * For untrusted data, prefer `deserializeSafe`.
+   */
   static deserialize(buf: ArrayBuffer | Uint8Array): RoaringBitmap32 {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
     const ptr = roaring_bitmap_deserialize(b);
@@ -633,7 +882,12 @@ export class RoaringBitmap32 {
     return new RoaringBitmap32(ptr);
   }
 
-  /** Safe deserialize (bounds-checked). Returns `null` on failure. */
+  /**
+   * Safe deserialize from a native buffer (bounds-checked).
+   *
+   * Wraps `roaring_bitmap_deserialize_safe`. Returns `null` on
+   * failure. Call `validate()` on the result before use.
+   */
   static deserializeSafe(buf: ArrayBuffer | Uint8Array, maxBytes: number): RoaringBitmap32 | null {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
     const ptr = roaring_bitmap_deserialize_safe(b, maxBytes);
@@ -642,23 +896,47 @@ export class RoaringBitmap32 {
 
   // ---- optimization ---------------------------------------------------
 
-  /** Convert array/bitmap containers to run containers where beneficial. */
+  /**
+   * Convert array and bitmap containers to run containers where
+   * more space-efficient.
+   *
+   * Wraps `roaring_bitmap_run_optimize`. Returns `true` if at least
+   * one run container was created. Can reduce serialization size
+   * for dense ranges.
+   */
   runOptimize(): boolean {
     return roaring_bitmap_run_optimize(this.#ptr);
   }
 
-  /** Remove run-length encoding. Returns `true` if changed. */
+  /**
+   * Remove run-length encoding, reverting to array/bitmap containers.
+   *
+   * Wraps `roaring_bitmap_remove_run_compression`. Returns `true`
+   * if any containers were converted.
+   */
   removeRunCompression(): boolean {
     return roaring_bitmap_remove_run_compression(this.#ptr);
   }
 
-  /** Reallocate to shrink memory usage. Returns bytes saved. */
+  /**
+   * Reallocate internal buffers to shrink memory usage.
+   *
+   * Wraps `roaring_bitmap_shrink_to_fit`. Returns the number of
+   * bytes saved.
+   */
   shrinkToFit(): number {
     return Number(roaring_bitmap_shrink_to_fit(this.#ptr));
   }
 
   // ---- copy-on-write --------------------------------------------------
 
+  /**
+   * Whether copy-on-write is enabled for this bitmap.
+   *
+   * Wraps `roaring_bitmap_get_copy_on_write` / `roaring_bitmap_set_copy_on_write`.
+   * When enabled, containers can be shared between bitmaps to save
+   * memory. Must be set consistently across interacting bitmaps.
+   */
   get copyOnWrite(): boolean {
     return roaring_bitmap_get_copy_on_write(this.#ptr);
   }
@@ -667,19 +945,33 @@ export class RoaringBitmap32 {
     roaring_bitmap_set_copy_on_write(this.#ptr, cow);
   }
 
-  /** `true` if the bitmap has shared containers (for COW). */
+  /**
+   * `true` if the bitmap has shared containers (when COW is enabled).
+   *
+   * Wraps `roaring_contains_shared`.
+   */
   get containsShared(): boolean {
     return roaring_contains_shared(this.#ptr);
   }
 
-  /** Unshare all shared containers. Returns `true` if any were unshared. */
+  /**
+   * Clone all shared containers so this bitmap owns its data.
+   *
+   * Wraps `roaring_unshare_all`. Returns `true` if any containers
+   * were unshared.
+   */
   unshareAll(): boolean {
     return roaring_unshare_all(this.#ptr);
   }
 
   // ---- statistics / validation ----------------------------------------
 
-  /** Collect detailed statistics about the bitmap composition. */
+  /**
+   * Collect detailed statistics about the internal composition of
+   * the bitmap (number of containers by type, byte usage, etc.).
+   *
+   * Wraps `roaring_bitmap_statistics`.
+   */
   statistics(): RoaringStatistics {
     const buf = new ArrayBuffer(STATS_SIZE);
     roaring_bitmap_statistics(this.#ptr, toPtr(new Uint8Array(buf)));
