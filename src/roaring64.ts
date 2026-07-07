@@ -840,11 +840,47 @@ export class RoaringBitmap64 {
 
   // ---- toString / inspect ---------------------------------------------
 
+  /**
+   * Returns a human-readable string like `RoaringBitmap64(5) { 1, 2, 3, 4, 5 }`.
+   * For large bitmaps, shows the first and last few elements with `...`.
+   */
   toString(): string {
-    return `RoaringBitmap64 { cardinality: ${this.cardinality} }`;
+    const n = this.size;
+    const preview = formatPreview64(this);
+    return `RoaringBitmap64(${n}) { ${preview} }`;
   }
 
   [Symbol.for("nodejs.util.inspect.custom")](): string {
     return this.toString();
   }
+}
+
+/** Format the first/last few elements for display (64-bit). */
+function formatPreview64(bm: RoaringBitmap64): string {
+  const n = bm.size;
+  if (n === 0) return "";
+
+  const SHOW = 5;
+
+  if (n <= SHOW * 2) {
+    const all: string[] = [];
+    for (const v of bm) all.push(v.toString());
+    return all.join(", ");
+  }
+
+  const head: string[] = [];
+  let i = 0;
+  for (const v of bm) {
+    if (i >= SHOW) break;
+    head.push(v.toString());
+    i++;
+  }
+
+  const tail: string[] = [];
+  for (let k = n - SHOW; k < n; k++) {
+    const { value } = bm.select(BigInt(k));
+    tail.push(value.toString());
+  }
+
+  return [...head, "...", ...tail].join(", ");
 }

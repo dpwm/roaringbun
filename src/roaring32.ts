@@ -1097,11 +1097,52 @@ export class RoaringBitmap32 {
 
   // ---- toString / inspect ---------------------------------------------
 
+  /**
+   * Returns a human-readable string like `RoaringBitmap32(5) { 1, 2, 3, 4, 5 }`.
+   *
+   * For large bitmaps, shows the first and last few elements with `...`:
+   * `RoaringBitmap32(10000) { 1, 2, 3, 4, 5, ..., 9996, 9997, 9998, 9999 }`
+   */
   toString(): string {
-    return `RoaringBitmap32 { cardinality: ${this.cardinality} }`;
+    const n = this.size;
+    const preview = formatPreview(this);
+    return `RoaringBitmap32(${n}) { ${preview} }`;
   }
 
   [Symbol.for("nodejs.util.inspect.custom")](): string {
     return this.toString();
   }
+}
+
+/** Format the first/last few elements for display. */
+function formatPreview(bm: RoaringBitmap32): string {
+  const n = bm.size;
+  if (n === 0) return "";
+
+  const SHOW = 5;
+
+  if (n <= SHOW * 2) {
+    // Small bitmap: show all (iterate once)
+    const all: number[] = [];
+    for (const v of bm) all.push(v);
+    return all.join(", ");
+  }
+
+  // Head via iterator
+  const head: number[] = [];
+  let i = 0;
+  for (const v of bm) {
+    if (i >= SHOW) break;
+    head.push(v);
+    i++;
+  }
+
+  // Tail via select() — O(log n) per element, constant memory
+  const tail: number[] = [];
+  for (let k = n - SHOW; k < n; k++) {
+    const { value } = bm.select(k);
+    tail.push(value);
+  }
+
+  return [...head, "...", ...tail].join(", ");
 }
