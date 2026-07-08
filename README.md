@@ -2,16 +2,14 @@
 
 Roaringbun is a zero-dependency roaring bitmap library for bun.
 
-> **Status:** Early development. The API is usable but may change.
-
 ## Features
 
-* Zero-copy frozen views backed directly by a `Uint8Array`
 * Zero-dependency install — prebuilt `libroaring.so` ships with the package
-* 32-bit and 64-bit roaring bitmaps with a unified API
-* Set-compatible naming: `intersection()`, `union()`, `isSubsetOf()`, etc.
-* 99-test suite ported from CRoaring
-* SQLite-compatible serialization (interop with roaringsqlite)
+* 32-bit and 64-bit roaring bitmaps with a consistent API
+* Javascript `Set`-compatible API: `intersection()`, `union()`, `isSubsetOf()`.
+* 99-test suite mostly ported from CRoaring
+* SQLite-compatible serialization (interop with roaringlite)
+* Advanced features like zero-copy frozen views backed directly by a `Uint8Array`
 
 ## Installation
 
@@ -20,6 +18,7 @@ bun add roaringbun
 ```
 
 Prebuilt binaries are included for **linux-x64-glibc**. No postinstall hooks.
+
 Other platforms: see [Building from source](#building-from-source).
 
 ## Quickstart
@@ -261,12 +260,12 @@ using shifted = bm.addOffset(10);      // shift all values up by 10
 
 ## Benchmarks
 
-Roaring's strength is bulk operations on sorted integer data. Single-value
-`has()` is slower than JS `Set` due to FFI overhead per call — roughly 40×.
-But bulk construction, set operations, and compression are dramatically faster.
+Roaring's strength is bulk operations on sorted integer data.
+Single-value `has()` is around 40x slower than JS `Set`.
+Bulk construction, set operations, and compression are dramatically faster.
 
 All measurements are wall-clock on an x86_64 Linux machine, averaged over
-5 runs. The C library uses runtime CPU dispatch (AVX2 when available).
+5 runs. The C library uses runtime CPU dispatch (AVX2/AVX512 when available).
 
 ### Construction
 
@@ -276,8 +275,8 @@ All measurements are wall-clock on an x86_64 Linux machine, averaged over
 | 100k sparse (scattered add) | 10.5 ms | — |
 | 1M sorted ints (`from(Uint32Array)`) | 8.0 ms | 454 ms |
 
-`from(Uint32Array)` is zero-copy — bun passes the TypedArray's backing store
-pointer directly to C. No iteration, no marshalling.
+`from(Uint32Array)` does not require copying the typed array: bun passes the TypedArray's backing store
+pointer directly to C.
 
 ### Membership (100k lookups)
 
@@ -286,7 +285,7 @@ pointer directly to C. No iteration, no marshalling.
 | Dense (consecutive range) | 8.8 ms | 0.2 ms |
 | Sparse (scattered hits) | 13.6 ms | 0.3 ms |
 
-Single-value `has()` crosses the FFI boundary on every call, which dominates.
+Single-value `has()` does not use the optimal API.
 For bulk lookups on the same key range, the C API offers
 `contains_bulk()` with a reusable context — not yet exposed in the JS layer.
 

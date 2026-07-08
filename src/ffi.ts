@@ -332,6 +332,7 @@ export const roaring_bitmap_minimum                = symbols.roaring_bitmap_mini
 export const roaring_bitmap_maximum                = symbols.roaring_bitmap_maximum;
 export const roaring_bitmap_select                 = symbols.roaring_bitmap_select;
 export const roaring_bitmap_rank                   = symbols.roaring_bitmap_rank;
+export const roaring_bitmap_contains_bulk          = symbols.roaring_bitmap_contains_bulk;
 
 // 32-bit set operations
 export const roaring_bitmap_and                    = symbols.roaring_bitmap_and;
@@ -432,6 +433,7 @@ export const roaring64_bitmap_minimum             = symbols.roaring64_bitmap_min
 export const roaring64_bitmap_maximum             = symbols.roaring64_bitmap_maximum;
 export const roaring64_bitmap_select              = symbols.roaring64_bitmap_select;
 export const roaring64_bitmap_rank                = symbols.roaring64_bitmap_rank;
+export const roaring64_bitmap_contains_bulk       = symbols.roaring64_bitmap_contains_bulk;
 
 // 64-bit set operations
 export const roaring64_bitmap_and                 = symbols.roaring64_bitmap_and;

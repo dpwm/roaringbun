@@ -19,8 +19,8 @@
 export * from "./ffi.ts";
 
 // High-level wrapper classes.
-export { RoaringBitmap32, RoaringBitmap32Iterator } from "./roaring32.ts";
+export { RoaringBitmap32, RoaringBitmap32Iterator, BulkContext } from "./roaring32.ts";
 export type { RoaringStatistics } from "./roaring32.ts";
 
-export { RoaringBitmap64, RoaringBitmap64Iterator } from "./roaring64.ts";
+export { RoaringBitmap64, RoaringBitmap64Iterator, BulkContext64 } from "./roaring64.ts";
 export type { Roaring64Statistics } from "./roaring64.ts";

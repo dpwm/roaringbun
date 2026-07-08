@@ -20,6 +20,7 @@ import {
   roaring64_bitmap_remove_many,
   roaring64_bitmap_remove_range,
   roaring64_bitmap_contains,
+  roaring64_bitmap_contains_bulk,
   roaring64_bitmap_contains_range,
   roaring64_bitmap_clear,
   roaring64_bitmap_get_cardinality,
@@ -115,6 +116,19 @@ export interface Roaring64Statistics {
   maxValue: bigint;
   minValue: bigint;
   cardinality: bigint;
+}
+
+// ---- bulk context (for accelerated repeated lookups) ------------------
+
+/**
+ * Reusable context for accelerated repeated `has()` calls on 64-bit bitmaps.
+ * Zero-initialized. Pass to `has()` to cache the last leaf lookup.
+ *
+ * Corresponds to C `roaring64_bulk_context_t`.
+ */
+export class BulkContext64 {
+  /** 16-byte buffer for the C struct. */
+  readonly buffer = new Uint8Array(16);
 }
 
 // ---- 64-bit iterator ---------------------------------------------------
@@ -299,9 +313,14 @@ export class RoaringBitmap64 {
   /**
    * Returns `true` if `value` is in the set.
    *
-   * Wraps `roaring64_bitmap_contains`.
+   * Wraps `roaring64_bitmap_contains`. When `context` is provided,
+   * uses the bulk variant which caches the last leaf lookup for
+   * faster repeated calls with similar-high-bytes values.
    */
-  has(value: bigint | number): boolean {
+  has(value: bigint | number, context?: BulkContext64): boolean {
+    if (context) {
+      return roaring64_bitmap_contains_bulk(this.#ptr, context.buffer, BigInt(value));
+    }
     return roaring64_bitmap_contains(this.#ptr, BigInt(value));
   }
 

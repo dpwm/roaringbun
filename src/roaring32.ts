@@ -89,6 +89,7 @@ import {
   roaring_iterator_create,
   roaring_uint32_iterator_free,
   roaring_uint32_iterator_advance,
+  roaring_bitmap_contains_bulk,
 } from "./ffi.ts";
 
 // ---- helpers -----------------------------------------------------------
@@ -344,8 +345,23 @@ export class RoaringBitmap32 {
    * Returns `true` if `value` is in the set.
    *
    * Wraps `roaring_bitmap_contains`. O(1) average, O(log n) worst case.
+   *
+   * When `context` is provided, uses `roaring_bitmap_contains_bulk`
+   * which caches the last container lookup. Consecutive calls with
+   * values in the same high-16-bit key range are faster.
+   *
+   * @example
+   * ```ts
+   * const ctx = new BulkContext();
+   * for (const v of thousandValues) {
+   *   if (bm.has(v, ctx)) { ... }
+   * }
+   * ```
    */
-  has(value: number): boolean {
+  has(value: number, context?: BulkContext): boolean {
+    if (context) {
+      return roaring_bitmap_contains_bulk(this.#ptr, context.buffer, value);
+    }
     return roaring_bitmap_contains(this.#ptr, value);
   }
 
@@ -1186,6 +1202,29 @@ export class RoaringBitmap32 {
   [Symbol.for("nodejs.util.inspect.custom")](): string {
     return this.toString();
   }
+}
+
+// ---- bulk context (for accelerated repeated lookups) ----------------
+
+/**
+ * Reusable context for accelerated repeated `has()` calls.
+ *
+ * Zero-initialized on creation. Pass to `has()` to cache the last
+ * container lookup, speeding up consecutive calls with values in
+ * the same high-16-bits key range:
+ *
+ * ```ts
+ * const ctx = new BulkContext();
+ * for (const v of values) {
+ *   if (bm.has(v, ctx)) { ... }
+ * }
+ * ```
+ *
+ * Corresponds to C `roaring_bulk_context_t`.
+ */
+export class BulkContext {
+  /** 16-byte buffer for the C struct. */
+  readonly buffer = new Uint8Array(16);
 }
 
 /** Format the first/last few elements for display. */
