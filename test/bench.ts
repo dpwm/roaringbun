@@ -193,40 +193,45 @@ for (let i = 0; i < 20; i++) {
   RoaringBitmap32.from(w).intersection(bm).free();
 }
 
-function bench(fn: () => void, runs: number): number {
+function bench(fn: () => void, innerReps: number, runs: number): number {
   let min = Infinity;
   for (let r = 0; r < runs; r++) {
     const t1 = performance.now();
-    fn();
+    for (let k = 0; k < innerReps; k++) fn();
     const t2 = performance.now();
-    const elapsed = t2 - t1;
+    const elapsed = (t2 - t1) / innerReps;
     if (elapsed < min) min = elapsed;
   }
   return min;
 }
 
 const RUNS2 = parseInt(process.env.RUNS || "20", 10);
+const TARGET_MS = 50;
 
 console.log("Batch size | per-value ns | batch ns | speedup");
 console.log("-----------+--------------+----------+--------");
 
-for (let log2 = 12; log2 <= 16; log2++) {
+for (let log2 = 7; log2 <= 16; log2++) {
   const n = 1 << log2;
   const vals = new Uint32Array(n);
   for (let i = 0; i < n; i++) vals[i] = (i * 7) % 100000;
 
-  const pv = bench(() => { for (let i = 0; i < n; i++) bm.has(vals[i]); }, RUNS2);
+  // Enough inner reps so each timed block runs ~50ms
+  const perValEstimateNs = 50;
+  const opsPerInner = Math.max(1, Math.round(TARGET_MS * 1e6 / (n * perValEstimateNs)));
+
+  const pv = bench(() => { for (let i = 0; i < n; i++) bm.has(vals[i]); }, opsPerInner, RUNS2);
   const nsPV = (pv * 1e6 / n).toFixed(1);
 
   const batch = bench(() => {
     const q = RoaringBitmap32.from(vals);
     q.isSubsetOf(bm);
     q.free();
-  }, RUNS2);
+  }, opsPerInner, RUNS2);
   const nsBatch = (batch * 1e6 / n).toFixed(1);
 
   const speedup = (pv / Math.max(batch, 1e-9)).toFixed(1);
-  console.log(`${n.toString().padStart(9)} | ${nsPV.padStart(8)} ns | ${nsBatch.padStart(8)} ns | ${speedup.padStart(5)}×`);
+  console.log(`${n.toString().padStart(7)} | ${nsPV.padStart(7)} ns | ${nsBatch.padStart(7)} ns | ${speedup.padStart(5)}×`);
 }
 
 bm.free();
