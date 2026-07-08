@@ -306,23 +306,24 @@ query.isSubsetOf(bm);
 
 | Batch size | per-value `has()` | `isSubsetOf` | speedup |
 |---|---|---|---|
-| 128 | 42.7 ns | 13.6 ns | 3.1× |
-| 256 | 50.6 ns | 10.9 ns | 4.6× |
-| 512 | 47.4 ns | 8.9 ns | 5.3× |
-| 1,024 | 48.3 ns | 7.6 ns | 6.4× |
-| 2,048 | 46.7 ns | 7.3 ns | 6.4× |
-| 4,096 | 48.2 ns | 6.8 ns | 7.1× |
-| 8,192 | 47.7 ns | 7.8 ns | 6.1× |
-| 16,384 | 48.3 ns | 7.6 ns | 6.4× |
-| 32,768 | 46.2 ns | 6.5 ns | 7.1× |
-| 65,536 | 47.8 ns | 6.1 ns | 7.8× |
+| 128 | 46.79 ns | 14.82 ns | 3.16× |
+| 256 | 48.93 ns | 11.50 ns | 4.26× |
+| 512 | 50.16 ns | 9.67 ns | 5.19× |
+| 1,024 | 49.45 ns | 7.68 ns | 6.44× |
+| 2,048 | 51.22 ns | 7.85 ns | 6.53× |
+| 4,096 | 51.24 ns | 7.51 ns | 6.82× |
+| 8,192 | 50.12 ns | 7.49 ns | 6.69× |
+| 16,384 | 48.58 ns | 7.70 ns | 6.31× |
+| 32,768 | 49.10 ns | 7.26 ns | 6.76× |
+| 65,536 | 51.91 ns | 6.20 ns | 8.38× |
 
 Times are nanoseconds per element (minimum of 20 runs after warmup,
-inner loops timed at ~50ms per measurement). Per-value `has()` is
-~47 ns — the pure FFI call overhead. The batch approach converges to
-~7 ns — the construction cost of the query bitmap amortized across
-the batch. `intersection()` and `difference()` have the same cost
-since all three are dominated by building the query bitmap.
+inner loops timed at ~100ms per measurement, CPU governor set to
+performance). Per-value `has()` is 48-52 ns — the pure FFI call
+overhead. The batch approach converges to ~7 ns — the construction
+cost of the query bitmap amortized across the batch. `intersection()`
+and `difference()` have the same cost since all three are dominated
+by building the query bitmap.
 
 `intersection()` and `difference()` have the same cost as `isSubsetOf`
 since all three dominate at building the query bitmap.
