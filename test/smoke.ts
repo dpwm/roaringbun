@@ -132,7 +132,7 @@ console.log("intersects:", bm64.intersects(bm64_2));
 const ser64 = bm64_3.portableSerialize();
 console.log("portableSerialize bytes:", ser64.length);
 
-const bm64_4 = RoaringBitmap64.portableDeserializeSafe(ser64, ser64.length);
+const bm64_4 = RoaringBitmap64.portableDeserializeSafe(ser64);
 console.log("deserialized cardinality:", bm64_4?.cardinality);
 
 // Cleanup

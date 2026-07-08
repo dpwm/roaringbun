@@ -444,7 +444,7 @@ describe("RoaringBitmap32", () => {
   test("portable serialize round-trip (safe)", () => {
     const bm = RoaringBitmap32.fromRange(0, 5000);
     const data = bm.portableSerialize();
-    const restored = RoaringBitmap32.portableDeserializeSafe(data, data.length);
+    const restored = RoaringBitmap32.portableDeserializeSafe(data);
     expect(restored).not.toBeNull();
     expect(bm.equals(restored!)).toBe(true);
     bm.free(); restored!.free();
@@ -461,7 +461,7 @@ describe("RoaringBitmap32", () => {
   test("native serialize round-trip (safe)", () => {
     const bm = RoaringBitmap32.fromRange(0, 1000);
     const data = bm.serialize();
-    const restored = RoaringBitmap32.deserializeSafe(data, data.length);
+    const restored = RoaringBitmap32.deserializeSafe(data);
     expect(restored).not.toBeNull();
     expect(bm.equals(restored!)).toBe(true);
     bm.free(); restored!.free();

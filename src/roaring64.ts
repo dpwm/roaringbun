@@ -667,14 +667,11 @@ export class RoaringBitmap64 {
    * Returns `null` on failure. Call `validate()` on the result
    * if the source is untrusted.
    */
-  static portableDeserializeSafe(
-    buf: ArrayBuffer | Uint8Array,
-    maxBytes: number,
-  ): RoaringBitmap64 | null {
+  static portableDeserializeSafe(buf: ArrayBuffer | Uint8Array): RoaringBitmap64 | null {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
     const ptr = roaring64_bitmap_portable_deserialize_safe(
       b as unknown as string,
-      maxBytes,
+      b.length,
     );
     return ptr ? new RoaringBitmap64(ptr) : null;
   }

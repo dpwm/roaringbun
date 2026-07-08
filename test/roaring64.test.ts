@@ -138,7 +138,7 @@ describe("RoaringBitmap64", () => {
   test("portable serialize round-trip", () => {
     const bm = RoaringBitmap64.from([1n, 2n, 3n, 1000000000000n]);
     const data = bm.portableSerialize();
-    const restored = RoaringBitmap64.portableDeserializeSafe(data, data.length);
+    const restored = RoaringBitmap64.portableDeserializeSafe(data);
     expect(restored).not.toBeNull();
     expect(bm.equals(restored!)).toBe(true);
     assertValid(restored!);

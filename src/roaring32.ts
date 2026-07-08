@@ -844,11 +844,11 @@ export class RoaringBitmap32 {
    * on failure instead of throwing. Recommended for untrusted data.
    * Call `validate()` on the result before use.
    */
-  static portableDeserializeSafe(buf: ArrayBuffer | Uint8Array, maxBytes: number): RoaringBitmap32 | null {
+  static portableDeserializeSafe(buf: ArrayBuffer | Uint8Array): RoaringBitmap32 | null {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
     const ptr = roaring_bitmap_portable_deserialize_safe(
       b as unknown as string,
-      maxBytes,
+      b.length,
     );
     return ptr ? new RoaringBitmap32(ptr) : null;
   }
@@ -897,9 +897,9 @@ export class RoaringBitmap32 {
    * Wraps `roaring_bitmap_deserialize_safe`. Returns `null` on
    * failure. Call `validate()` on the result before use.
    */
-  static deserializeSafe(buf: ArrayBuffer | Uint8Array, maxBytes: number): RoaringBitmap32 | null {
+  static deserializeSafe(buf: ArrayBuffer | Uint8Array): RoaringBitmap32 | null {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    const ptr = roaring_bitmap_deserialize_safe(b, maxBytes);
+    const ptr = roaring_bitmap_deserialize_safe(b, b.length);
     return ptr ? new RoaringBitmap32(ptr) : null;
   }
 
