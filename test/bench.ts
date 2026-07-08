@@ -184,12 +184,12 @@ console.log("\n=== Batch contains (per-value vs isSubsetOf) ===\n");
 const bm = new RoaringBitmap32();
 for (let i = 0; i < 50000; i++) bm.add(i * 2);
 
-// Warmup
-for (let i = 0; i < 5; i++) {
-  const w = new Uint32Array(4096);
-  for (let j = 0; j < 4096; j++) w[j] = (j * 7) % 100000;
+// Warmup — ~500k operations to stabilize JIT and CPU frequency
+for (let i = 0; i < 20; i++) {
+  const w = new Uint32Array(8192);
+  for (let j = 0; j < 8192; j++) w[j] = (j * 7) % 100000;
   bm.hasAll(w);
-  for (let j = 0; j < 4096; j++) bm.has(w[j]);
+  for (let j = 0; j < 8192; j++) bm.has(w[j]);
   RoaringBitmap32.from(w).intersection(bm).free();
 }
 
@@ -216,17 +216,17 @@ for (let log2 = 12; log2 <= 16; log2++) {
   for (let i = 0; i < n; i++) vals[i] = (i * 7) % 100000;
 
   const pv = bench(() => { for (let i = 0; i < n; i++) bm.has(vals[i]); }, RUNS2);
-  const nsPV = Math.round(pv * 1e6 / n);
+  const nsPV = (pv * 1e6 / n).toFixed(1);
 
   const batch = bench(() => {
     const q = RoaringBitmap32.from(vals);
     q.isSubsetOf(bm);
     q.free();
   }, RUNS2);
-  const nsBatch = Math.round(batch * 1e6 / n);
+  const nsBatch = (batch * 1e6 / n).toFixed(1);
 
-  const speedup = (pv / Math.max(batch, 1e-6)).toFixed(1);
-  console.log(`${n.toString().padStart(9)} | ${nsPV.toString().padStart(12)} | ${nsBatch.toString().padStart(8)} | ${speedup.padStart(5)}×`);
+  const speedup = (pv / Math.max(batch, 1e-9)).toFixed(1);
+  console.log(`${n.toString().padStart(9)} | ${nsPV.padStart(8)} ns | ${nsBatch.padStart(8)} ns | ${speedup.padStart(5)}×`);
 }
 
 bm.free();
