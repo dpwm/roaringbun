@@ -366,6 +366,26 @@ export class RoaringBitmap32 {
   }
 
   /**
+   * Returns `true` if all `values` are present in the bitmap.
+   *
+   * Wraps `roaring_bitmap_of_ptr` + `roaring_bitmap_is_subset`.
+   * A single FFI call after constructing the query bitmap — no
+   * per-value crossings.
+   *
+   * @example
+   * ```ts
+   * if (bm.hasAll([1, 2, 3])) { ... }
+   * ```
+   */
+  hasAll(values: readonly number[] | Uint32Array): boolean {
+    const buf = values instanceof Uint32Array ? values : new Uint32Array(values);
+    const query = roaring_bitmap_of_ptr(buf.length, buf);
+    const result = roaring_bitmap_is_subset(query, this.#ptr);
+    roaring_bitmap_free(query);
+    return result;
+  }
+
+  /**
    * Returns `true` if all values in the half-open range `[min, max)` are present.
    *
    * Wraps `roaring_bitmap_contains_range`.

@@ -325,6 +325,22 @@ export class RoaringBitmap64 {
   }
 
   /**
+   * Returns `true` if all `values` are present in the bitmap.
+   *
+   * A single FFI call after constructing the query bitmap — no
+   * per-value crossings.
+   */
+  hasAll(values: readonly (bigint | number)[] | BigUint64Array): boolean {
+    const buf = values instanceof BigUint64Array
+      ? values
+      : new BigUint64Array(values.map(BigInt));
+    const query = roaring64_bitmap_of_ptr(buf.length, buf);
+    const result = roaring64_bitmap_is_subset(query, this.#ptr);
+    roaring64_bitmap_free(query);
+    return result;
+  }
+
+  /**
    * Returns `true` if all values in the half-open range `[min, max)` are present.
    *
    * Wraps `roaring64_bitmap_contains_range`.
