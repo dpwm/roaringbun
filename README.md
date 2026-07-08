@@ -289,16 +289,36 @@ Single-value `has()` does not use the optimal API.
 For bulk lookups on the same key range, the C API offers
 `contains_bulk()` with a reusable context — not yet exposed in the JS layer.
 
-### Set operations (100k ∩ 100k dense)
+### Batch membership (per-value vs hasAll)
 
-| Operation | RoaringBitmap32 | JS `Set` (filter) |
-|---|---|---|
-| Intersection | 0.01 ms | 15.6 ms |
-| Union | < 0.01 ms | ~30 ms |
-| Difference | 0.01 ms | ~15 ms |
+Checking whether many values exist in a bitmap is 5-13× faster by
+building a query bitmap and using `isSubsetOf` (one FFI call) instead
+of calling `has()` on each value individually (N FFI calls):
 
-Set operations execute entirely in C without FFI crossings between steps.
-The gap widens with larger inputs.
+```ts
+// Per-value: N FFI calls, ~44 ns each
+for (const v of values) bm.has(v);
+
+// Batch: 1 FFI call, ~7 ns per value
+using query = RoaringBitmap32.from(values);
+query.isSubsetOf(bm);
+```
+
+| Batch size | per-value `has()` | `isSubsetOf` | speedup |
+|---|---|---|---|
+| 4,096 | 92 ns | 8 ns | 12× |
+| 8,192 | 82 ns | 8 ns | 11× |
+| 16,384 | 43 ns | 8 ns | 6× |
+| 32,768 | 44 ns | 7 ns | 7× |
+| 65,536 | 44 ns | 6 ns | 7× |
+
+Times are nanoseconds per element (minimum of 20 runs after warmup).
+The per-value cost converges to ~44 ns (pure FFI overhead). The batch
+approach converges to ~7 ns — the construction cost amortized over
+many values.
+
+`intersection()` and `difference()` have the same cost as `isSubsetOf`
+since all three dominate at building the query bitmap.
 
 ### Iteration (100k dense, for...of)
 
@@ -307,7 +327,7 @@ The gap widens with larger inputs.
 | Time | 17.6 ms | 1.4 ms |
 
 Each iterator step crosses FFI. For bulk read, `toArray()` (3.6 ms for 1M
-ints) or `roaring_uint32_iterator_read()` are faster paths.
+ints) is faster.
 
 ### Memory & Serialization
 

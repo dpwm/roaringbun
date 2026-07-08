@@ -1,22 +1,15 @@
 /**
- * Simple benchmarks for roaringbun.
+ * Benchmarks for roaringbun.
  *
  * Run: bun run test/bench.ts
  *
- * These are wall-clock benchmarks (not micro-benchmarks). They compare
- * roaringbun against JS's native Set for the same operations to give
- * a rough sense of where roaring shines.
- *
- * Caveats:
- *  - JS Set stores arbitrary values, not just uint32, so the comparison
- *    is only meaningful for integer sets.
- *  - Times include FFI overhead, which bun minimizes but doesn't eliminate.
- *  - Use --runs=N to control iterations (default 5).
+ * All times are minimum over N runs after warmup.
+ * Per-element times in nanoseconds to normalize across batch sizes.
  */
 
 import { RoaringBitmap32 } from "../src/index.ts";
 
-const RUNS = parseInt(process.env.RUNS || "5", 10);
+const RUNS = parseInt(process.env.RUNS || "20", 10);
 const DENSE_SIZE = 100_000;
 const SPARSE_SIZE = 100_000;
 const SPARSE_SPREAD = 10_000_000;
@@ -185,4 +178,56 @@ console.log("\n=== Serialization (100k dense) ===\n");
   bm.free();
 })();
 
+console.log("\n=== Batch contains (per-value vs isSubsetOf) ===\n");
+
+// Build a bitmap with 50k even numbers
+const bm = new RoaringBitmap32();
+for (let i = 0; i < 50000; i++) bm.add(i * 2);
+
+// Warmup
+for (let i = 0; i < 5; i++) {
+  const w = new Uint32Array(4096);
+  for (let j = 0; j < 4096; j++) w[j] = (j * 7) % 100000;
+  bm.hasAll(w);
+  for (let j = 0; j < 4096; j++) bm.has(w[j]);
+  RoaringBitmap32.from(w).intersection(bm).free();
+}
+
+function bench(fn: () => void, runs: number): number {
+  let min = Infinity;
+  for (let r = 0; r < runs; r++) {
+    const t1 = performance.now();
+    fn();
+    const t2 = performance.now();
+    const elapsed = t2 - t1;
+    if (elapsed < min) min = elapsed;
+  }
+  return min;
+}
+
+const RUNS2 = parseInt(process.env.RUNS || "20", 10);
+
+console.log("Batch size | per-value ns | batch ns | speedup");
+console.log("-----------+--------------+----------+--------");
+
+for (let log2 = 12; log2 <= 16; log2++) {
+  const n = 1 << log2;
+  const vals = new Uint32Array(n);
+  for (let i = 0; i < n; i++) vals[i] = (i * 7) % 100000;
+
+  const pv = bench(() => { for (let i = 0; i < n; i++) bm.has(vals[i]); }, RUNS2);
+  const nsPV = Math.round(pv * 1e6 / n);
+
+  const batch = bench(() => {
+    const q = RoaringBitmap32.from(vals);
+    q.isSubsetOf(bm);
+    q.free();
+  }, RUNS2);
+  const nsBatch = Math.round(batch * 1e6 / n);
+
+  const speedup = (pv / Math.max(batch, 1e-6)).toFixed(1);
+  console.log(`${n.toString().padStart(9)} | ${nsPV.toString().padStart(12)} | ${nsBatch.toString().padStart(8)} | ${speedup.padStart(5)}×`);
+}
+
+bm.free();
 console.log("\n✅ Benchmarks complete");
