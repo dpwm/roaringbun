@@ -18,7 +18,6 @@ bun add roaringbun
 ```
 
 Prebuilt binaries are included for **linux-x64-glibc**. No postinstall hooks.
-
 Other platforms: see [Building from source](#building-from-source).
 
 ## Quickstart
@@ -26,21 +25,17 @@ Other platforms: see [Building from source](#building-from-source).
 ```ts
 import { RoaringBitmap32 } from "roaringbun";
 
-// Create a bitmap and add values
 using bm = new RoaringBitmap32();
 bm.add(1).add(2).add(3);
 
-// Query
 console.log(bm.has(2));    // true
 console.log(bm.cardinality); // 3n
 console.log(bm.size);       // 3
 
-// Iterate
 for (const v of bm) {
   console.log(v);
 }
 
-// Set operations
 using other = RoaringBitmap32.from([3, 4, 5]);
 using union = bm.union(other);
 console.log([...union]); // [1, 2, 3, 4, 5]
@@ -49,7 +44,7 @@ console.log([...union]); // [1, 2, 3, 4, 5]
 ## SQLite interop
 
 Stored blobs from [roaringlite](https://github.com/dpwm/roaringlite) are
-compatible with `deserializeSafe()`:
+compatible with `deserializeSafe()` — both use the native CRoaring format:
 
 ```ts
 const row = db.query("SELECT bitmap FROM data WHERE id = ?").get(42);
@@ -57,206 +52,53 @@ using bm = RoaringBitmap32.deserializeSafe(row.bitmap);
 console.log(bm.cardinality, [...bm]);
 ```
 
-Bitmaps serialized with `serialize()` can be loaded by
-roaringlite.
+Bitmaps serialized with `serialize()` can be loaded by roaringlite too.
 
 ## Frozen Views
 
-For zero-copy loading from a `Uint8Array` (no parsing, no allocation),
-use `frozenView()` — requires data stored in frozen format:
+Zero-copy loading from a `Uint8Array` — no parsing, no allocation.
+The resulting bitmap is a direct view of the buffer's memory.
 
 ```ts
 using bm = RoaringBitmap32.frozenView(uint8array);
-console.log(bm.has(42));
+console.log(bm.has(42));  // backed directly by the buffer, no copy
 ```
+
+Requires data stored in frozen format (see `frozenSerialize()` in the source).
 
 ## API
 
-Both `RoaringBitmap32` and `RoaringBitmap64` share the same API surface.
-The 64-bit variant accepts and returns `bigint` values:
+All JSDoc lives in the source files — the README is a map to find what
+you need. Each source file exports one or more public classes along with
+related types.
 
-```ts
-const bm64 = new RoaringBitmap64();
-bm64.add(1n).add(1000000000000n).add(0xFFFFFFFFFFFFFFFFn);
-console.log([...bm64]); // [1n, 1000000000000n, 18446744073709551615n]
-```
+| Source file | Exports | What it is |
+|---|---|---|
+| [`src/ffi.ts`](./src/ffi.ts) | ~110 raw C functions, `FFIType`, `read`, `ptr` | Low-level `dlopen` bindings to CRoaring. Every C function is callable directly. |
+| [`src/roaring32.ts`](./src/roaring32.ts) | `RoaringBitmap32`, `RoaringBitmap32Iterator`, `BulkContext`, `RoaringStatistics` | 32-bit bitmap. Main class with the full API. |
+| [`src/roaring64.ts`](./src/roaring64.ts) | `RoaringBitmap64`, `RoaringBitmap64Iterator`, `BulkContext64`, `Roaring64Statistics` | 64-bit bitmap. Same API as 32-bit, accepts `bigint`. |
+| [`src/index.ts`](./src/index.ts) | (re-exports everything above) | Entry point. Import from `"roaringbun"`. |
 
-Full JSDoc is in [the source](./src).
+### Quick method reference
 
-### Common operations
+Common operations (both `RoaringBitmap32` and `RoaringBitmap64`):
 
-```ts
-// Create
-const bm = new RoaringBitmap32();
-const fromValues = RoaringBitmap32.from([1, 2, 3]);
-const fromRange = RoaringBitmap32.fromRange(0, 1000); // [0, 1000)
-const copy = RoaringBitmap32.copy(fromValues);
+- **Lifecycle**: `constructor`, `free()`, `using`, `from()`, `copy()`, `frozenView()`
+- **Add / remove**: `add()`, `delete()`, `addMany()`, `clear()`
+- **Query**: `has()`, `hasAll()`, `hasRange()`, `cardinality`, `size`, `isEmpty`, `minimum`, `maximum`
+- **Set ops**: `intersection()`, `union()`, `difference()`, `symmetricDifference()`, `isSubsetOf()`, `isSupersetOf()`, `isDisjointFrom()`, `intersects()`
+- **In-place set ops**: `andInPlace()`, `orInPlace()`, `xorInPlace()`, `andnotInPlace()`
+- **Rank / select**: `rank()`, `select()`, `indexOf()`
+- **Iteration**: `[Symbol.iterator]()`, `values()`, `entries()`, `forEach()`
+- **Serialization**: `serialize()`, `deserialize()`, `deserializeSafe()`, `portableSerialize()`, `portableDeserialize()`, `frozenSerialize()`, `frozenView()`
+- **Bulk**: `addMany()`, `removeMany()`, `addRange()`, `removeRange()`, `toArray()`, `toRangeArray()`
+- **Optimization**: `runOptimize()`, `removeRunCompression()`, `shrinkToFit()`
+- **Validation**: `validate()`, `statistics()`
+- **Lazy (expert)**: `lazyOr()`, `lazyXor()`, `repairAfterLazy()`
+- **Other**: `flip()`, `addOffset()`, `equals()`, `jaccardIndex()`
 
-// Add / remove
-bm.add(42);
-bm.add(1).add(2).add(3);     // chaining
-bm.addChecked(99);            // returns true if newly inserted
-bm.addMany([10, 20, 30]);     // bulk add
-bm.addRange(0, 100);          // add [0, 100)
-
-bm.delete(42);                // returns true if present
-bm.removeChecked(99);         // returns true if present
-bm.removeMany([10, 20]);      // bulk remove
-bm.clear();
-
-// Query
-bm.has(42);                   // true / false
-bm.hasRange(0, 10);           // all of [0, 10) present?
-bm.cardinality;               // bigint
-bm.size;                      // number
-bm.isEmpty;
-bm.minimum;                   // smallest element
-bm.maximum;                   // largest element
-
-// Convert
-const arr: Uint32Array = bm.toArray();
-
-// Iterate
-for (const v of bm) { ... }
-const all = [...bm];
-bm.forEach(v => console.log(v));
-for (const [k, v] of bm.entries()) { ... }
-```
-
-### Set operations
-
-All return new bitmaps (caller frees). In-place variants (`andInPlace`,
-`orInPlace`, etc.) modify `this`.
-
-```ts
-const a = RoaringBitmap32.from([1, 2, 3, 4]);
-const b = RoaringBitmap32.from([3, 4, 5, 6]);
-
-using intersection = a.intersection(b);   // { 3, 4 }  (alias: and)
-using union = a.union(b);                 // { 1, 2, 3, 4, 5, 6 }  (alias: or)
-using diff = a.difference(b);             // { 1, 2 }  (alias: andnot)
-using sym = a.symmetricDifference(b);     // { 1, 2, 5, 6 }  (alias: xor)
-
-// Queries
-console.log(a.equals(b));           // false
-console.log(a.isSubsetOf(b));       // false
-console.log(a.isSupersetOf(b));     // false
-console.log(a.isDisjointFrom(b));   // false (they share 3, 4)
-console.log(a.intersects(b));       // true
-
-// Bulk union
-using many = RoaringBitmap32.orMany([a, b, c]);
-```
-
-### Serialization
-
-Three formats, each with a different tradeoff:
-
-```ts
-// Native  — C-optimized, may be more compact for sparse data
-const buf = bm.serialize();
-using loaded = RoaringBitmap32.deserialize(buf);
-using safe = RoaringBitmap32.deserializeSafe(buf);  // bounds-checked, returns null on failure
-
-// Portable — cross-language (Java, Go, etc.)
-const buf = bm.portableSerialize();
-using loaded = RoaringBitmap32.portableDeserialize(buf);
-using safe = RoaringBitmap32.portableDeserializeSafe(buf);
-
-// Frozen  — zero-copy view, no parsing, no allocation
-// Requires shrinkToFit() before serialization
-bm.shrinkToFit();
-const frozen = bm.frozenSerialize();
-using view = RoaringBitmap32.frozenView(frozen);
-console.log(view.has(42));  // backed directly by the buffer
-```
-
-Frozen views are read-only — the backing `Uint8Array` must outlive the
-bitmap. The bitmap keeps a reference to prevent GC.
-
-### Bulk operations
-
-```ts
-// from a sorted TypedArray (zero-copy input)
-const arr = new Uint32Array([1, 2, 3, 1000, 50000]);
-using bm = RoaringBitmap32.from(arr);
-
-// add/remove many at once
-bm.addMany([10, 20, 30, 40]);
-bm.removeMany([10, 20]);
-
-// add/remove a whole range
-bm.addRange(0, 1000);      // [0, 1000)
-bm.removeRange(500, 600);  // [500, 600)
-
-// check a range
-bm.hasRange(0, 100);       // true if all present
-
-// convert back to array
-const all: Uint32Array = bm.toArray();              // all elements
-const slice = bm.toRangeArray(100, 50);             // 50 elements starting at rank 100
-```
-
-### Rank / select
-
-```ts
-// rank: number of elements ≤ value
-console.log(bm.rank(42));       // 0 if 42 < min, else count
-
-// select: element at 0-based rank
-const { value, found } = bm.select(0);  // smallest element
-console.log(found ? value : "empty");
-
-// index of a specific value
-console.log(bm.indexOf(42));    // 0-based index, or -1 if absent
-```
-
-### Optimization
-
-```ts
-bm.runOptimize();        // convert to run containers where beneficial
-bm.removeRunCompression(); // revert to array/bitmap containers
-bm.shrinkToFit();        // reallocate to minimum size, returns bytes saved
-```
-
-### Validation
-
-```ts
-const { valid, reason } = bm.validate();
-if (!valid) console.log("bitmap corrupt:", reason);
-// e.g. "array elements not strictly increasing"
-```
-
-### Statistics
-
-```ts
-const stats = bm.statistics();
-console.log(stats.nContainers);     // 2
-console.log(stats.nArrayContainers); // 1
-console.log(stats.nRunContainers);   // 1
-console.log(stats.cardinality);      // 1000n
-```
-
-### Lazy operations (expert)
-
-Defers cardinality computation for faster batched unions. **Must** call
-`repairAfterLazy()` before using the result with non-lazy operations.
-
-```ts
-using l = a.lazyOr(b);
-l.lazyOrInPlace(c);
-l.repairAfterLazy();
-console.log(l.cardinality);  // now accurate
-```
-
-### Flip / offset
-
-```ts
-using negated = bm.flip(0, 100);       // negate [0, 100)
-bm.flipInPlace(0, 100);               // in-place
-
-using shifted = bm.addOffset(10);      // shift all values up by 10
-```
+Old CRoaring-style names (`and`, `or`, `xor`, `andnot`, `isSubset`,
+`isStrictSubset`, `remove`) are kept as aliases.
 
 ## Benchmarks
 
@@ -264,8 +106,8 @@ Roaring's strength is bulk operations on sorted integer data.
 Single-value `has()` is around 40x slower than JS `Set`.
 Bulk construction, set operations, and compression are dramatically faster.
 
-All measurements are wall-clock on an x86_64 Linux machine, averaged over
-5 runs. The C library uses runtime CPU dispatch (AVX2/AVX512 when available).
+All measurements are wall-clock on an x86_64 Linux machine. See
+[`test/bench.ts`](./test/bench.ts) for the full benchmark suite.
 
 ### Construction
 
@@ -275,28 +117,13 @@ All measurements are wall-clock on an x86_64 Linux machine, averaged over
 | 100k sparse (scattered add) | 10.5 ms | — |
 | 1M sorted ints (`from(Uint32Array)`) | 8.0 ms | 454 ms |
 
-`from(Uint32Array)` does not require copying the typed array: bun passes the TypedArray's backing store
-pointer directly to C.
+### Batch membership (per-value vs `hasAll`)
 
-### Membership (100k lookups)
-
-| Scenario | RoaringBitmap32 `has()` | JS `Set` `has()` |
-|---|---|---|
-| Dense (consecutive range) | 8.8 ms | 0.2 ms |
-| Sparse (scattered hits) | 13.6 ms | 0.3 ms |
-
-Single-value `has()` does not use the optimal API.
-For bulk lookups on the same key range, the C API offers
-`contains_bulk()` with a reusable context — not yet exposed in the JS layer.
-
-### Batch membership (per-value vs hasAll)
-
-Checking whether many values exist in a bitmap is 5-13× faster by
-building a query bitmap and using `isSubsetOf` (one FFI call) instead
-of calling `has()` on each value individually (N FFI calls):
+Building a query bitmap from the values and using `isSubsetOf` is
+**6-8× faster** than calling `has()` on each value individually:
 
 ```ts
-// Per-value: N FFI calls, ~44 ns each
+// Per-value: N FFI calls, ~47 ns each
 for (const v of values) bm.has(v);
 
 // Batch: 1 FFI call, ~7 ns per value
@@ -317,25 +144,10 @@ query.isSubsetOf(bm);
 | 32,768 | 49.10 ns | 7.26 ns | 6.76× |
 | 65,536 | 51.91 ns | 6.20 ns | 8.38× |
 
-Times are nanoseconds per element (minimum of 20 runs after warmup,
-inner loops timed at ~100ms per measurement, CPU governor set to
-performance). Per-value `has()` is 48-52 ns — the pure FFI call
-overhead. The batch approach converges to ~7 ns — the construction
-cost of the query bitmap amortized across the batch. `intersection()`
-and `difference()` have the same cost since all three are dominated
-by building the query bitmap.
-
-`intersection()` and `difference()` have the same cost as `isSubsetOf`
-since all three dominate at building the query bitmap.
-
-### Iteration (100k dense, for...of)
-
-| | RoaringBitmap32 | JS `Set` |
-|---|---|---|
-| Time | 17.6 ms | 1.4 ms |
-
-Each iterator step crosses FFI. For bulk read, `toArray()` (3.6 ms for 1M
-ints) is faster.
+Nanoseconds per element, minimum of 20 runs after warmup with CPU
+governor set to performance. `intersection()` and `difference()` have
+the same cost as `isSubsetOf` since all three are dominated by building
+the query bitmap from the input array.
 
 ### Memory & Serialization
 
@@ -343,10 +155,6 @@ ints) is faster.
 |---|---|---|
 | 1M ints | 3.8 MB | 248 KB (16× smaller) |
 | 100k dense range | 391 KB | 15 bytes |
-
-The compressed format excels on dense and clustered data. A consecutive
-range of 100k integers stores as a single run container — just 15 bytes
-in portable form.
 
 ## Building from source
 
