@@ -1,16 +1,17 @@
 # roaringbun
 
-Roaringbun is a zero-dependency roaring bitmap library for bun. It is a two-layered wrapper around croaring. Croaring is vendored and provided by this package.
+Roaringbun is a zero-dependency roaring bitmap library for bun.
 
 > **Status:** Early development. The API is usable but may change.
 
 ## Features
 
-* Zero-dependency bindings to native code using Bun’s FFI. 
-* 32-bit and 64-bit roaring bitmaps supported
-* Set-compatible convenience layer
-* Full-featured API
-* Tests ported from CRoaring
+* Zero-copy frozen views backed directly by a `Uint8Array`
+* Zero-dependency install — prebuilt `libroaring.so` ships with the package
+* 32-bit and 64-bit roaring bitmaps with a unified API
+* Set-compatible naming: `intersection()`, `union()`, `isSubsetOf()`, etc.
+* 99-test suite ported from CRoaring
+* SQLite-compatible serialization (interop with roaringsqlite)
 
 ## Installation
 
@@ -18,7 +19,8 @@ Roaringbun is a zero-dependency roaring bitmap library for bun. It is a two-laye
 bun add roaringbun
 ```
 
-Binaries are already included for linux-x86_64-glibc. No postinstall hooks.
+Prebuilt binaries are included for **linux-x64-glibc**. No postinstall hooks.
+Other platforms: see [Building from source](#building-from-source).
 
 ## Quickstart
 
@@ -72,8 +74,15 @@ console.log(bm.has(42));
 ## API
 
 Both `RoaringBitmap32` and `RoaringBitmap64` share the same API surface.
-The 64-bit variant accepts and returns `bigint` values. Full JSDoc is in
-[the source](./src).
+The 64-bit variant accepts and returns `bigint` values:
+
+```ts
+const bm64 = new RoaringBitmap64();
+bm64.add(1n).add(1000000000000n).add(0xFFFFFFFFFFFFFFFFn);
+console.log([...bm64]); // [1n, 1000000000000n, 18446744073709551615n]
+```
+
+Full JSDoc is in [the source](./src).
 
 ### Common operations
 
