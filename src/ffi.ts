@@ -145,7 +145,7 @@ const LIB = dlopen(libraryPath(), {
   // --- frozen serialization ---
   roaring_bitmap_frozen_size_in_bytes:  { args: [ptr],                                       returns: usize },
   roaring_bitmap_frozen_serialize:      { args: [ptr, ptr],                               returns: void_ },
-  roaring_bitmap_frozen_view:           { args: [cstring, usize],                            returns: ptr },
+  roaring_bitmap_frozen_view:           { args: [ptr, usize],                             returns: ptr },
 
   // --- optimization ---
   roaring_bitmap_run_optimize:          { args: [ptr],                                       returns: bool },
@@ -265,7 +265,7 @@ const LIB = dlopen(libraryPath(), {
   // --- frozen serialization ---
   roaring64_bitmap_frozen_size_in_bytes: { args: [ptr],                                      returns: usize },
   roaring64_bitmap_frozen_serialize:     { args: [ptr, ptr],                              returns: usize },
-  roaring64_bitmap_frozen_view:          { args: [cstring, usize],                           returns: ptr },
+  roaring64_bitmap_frozen_view:          { args: [ptr, usize],                            returns: ptr },
 
   // --- optimization ---
   roaring64_bitmap_run_optimize:         { args: [ptr],                                      returns: bool },
@@ -366,7 +366,10 @@ export const roaring_bitmap_shrink_to_fit          = symbols.roaring_bitmap_shri
 export const roaring_bitmap_statistics            = symbols.roaring_bitmap_statistics;
 export const roaring_bitmap_internal_validate     = symbols.roaring_bitmap_internal_validate;
 
-// 32-bit extra (query/lazy/flip/construct)
+// 32-bit extra (query/lazy/flip/construct/frozen)
+export const roaring_bitmap_frozen_size_in_bytes  = symbols.roaring_bitmap_frozen_size_in_bytes;
+export const roaring_bitmap_frozen_serialize      = symbols.roaring_bitmap_frozen_serialize;
+export const roaring_bitmap_frozen_view           = symbols.roaring_bitmap_frozen_view;
 export const roaring_bitmap_get_index              = symbols.roaring_bitmap_get_index;
 export const roaring_bitmap_intersect_with_range   = symbols.roaring_bitmap_intersect_with_range;
 export const roaring_bitmap_jaccard_index          = symbols.roaring_bitmap_jaccard_index;
@@ -473,6 +476,9 @@ export const roaring64_bitmap_to_uint64_array     = symbols.roaring64_bitmap_to_
 export const roaring64_bitmap_of_ptr              = symbols.roaring64_bitmap_of_ptr;
 export const roaring64_bitmap_from_range          = symbols.roaring64_bitmap_from_range;
 export const roaring64_bitmap_move_from_roaring32 = symbols.roaring64_bitmap_move_from_roaring32;
+export const roaring64_bitmap_frozen_size_in_bytes = symbols.roaring64_bitmap_frozen_size_in_bytes;
+export const roaring64_bitmap_frozen_serialize     = symbols.roaring64_bitmap_frozen_serialize;
+export const roaring64_bitmap_frozen_view          = symbols.roaring64_bitmap_frozen_view;
 
 // 64-bit iterator
 export const roaring64_iterator_create              = symbols.roaring64_iterator_create;

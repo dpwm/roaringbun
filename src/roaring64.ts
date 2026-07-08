@@ -53,6 +53,9 @@ import {
   roaring64_bitmap_to_uint64_array,
   roaring64_bitmap_run_optimize,
   roaring64_bitmap_remove_run_compression,
+  roaring64_bitmap_frozen_size_in_bytes,
+  roaring64_bitmap_frozen_serialize,
+  roaring64_bitmap_frozen_view,
   roaring64_bitmap_shrink_to_fit,
   roaring64_bitmap_of_ptr,
   roaring64_bitmap_from_range,
@@ -160,6 +163,9 @@ const finalizers = new FinalizationRegistry((ptr: number) => {
 export class RoaringBitmap64 {
   /** Opaque pointer to the C `roaring64_bitmap_t` */
   readonly #ptr: number;
+
+  /** Reference to the backing buffer for frozen-view bitmaps. */
+  #backingBuffer: ArrayBuffer | Uint8Array | null = null;
 
   /**
    * Create a new empty 64-bit bitmap, or wrap an existing pointer.
@@ -671,6 +677,32 @@ export class RoaringBitmap64 {
       maxBytes,
     );
     return ptr ? new RoaringBitmap64(ptr) : null;
+  }
+
+  // ---- frozen serialization (zero-copy view) -------------------------
+
+  get frozenSizeInBytes(): number {
+    return Number(roaring64_bitmap_frozen_size_in_bytes(this.#ptr));
+  }
+
+  frozenSerialize(): Uint8Array {
+    const n = Number(roaring64_bitmap_frozen_size_in_bytes(this.#ptr));
+    const buf = new Uint8Array(n);
+    roaring64_bitmap_frozen_serialize(this.#ptr, buf);
+    return buf;
+  }
+
+  static frozenView(buffer: Uint8Array, options?: { offset?: number; length?: number }): RoaringBitmap64 {
+    const offset = options?.offset ?? 0;
+    const length = options?.length ?? buffer.length - offset;
+    const slice = offset === 0 && length === buffer.length
+      ? buffer
+      : buffer.subarray(offset, offset + length);
+    const ptr = roaring64_bitmap_frozen_view(slice, length);
+    if (!ptr) return new RoaringBitmap64();
+    const bm = new RoaringBitmap64(ptr);
+    bm.#backingBuffer = slice.buffer || slice;
+    return bm;
   }
 
   // ---- optimization ---------------------------------------------------

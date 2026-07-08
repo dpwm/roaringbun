@@ -55,6 +55,9 @@ import {
   roaring_bitmap_add_offset,
   roaring_bitmap_to_uint32_array,
   roaring_bitmap_range_uint32_array,
+  roaring_bitmap_frozen_size_in_bytes,
+  roaring_bitmap_frozen_serialize,
+  roaring_bitmap_frozen_view,
   roaring_bitmap_run_optimize,
   roaring_bitmap_remove_run_compression,
   roaring_bitmap_shrink_to_fit,
@@ -192,6 +195,12 @@ const finalizers = new FinalizationRegistry((ptr: number) => {
 export class RoaringBitmap32 {
   /** Opaque pointer to the C `roaring_bitmap_t` */
   readonly #ptr: number;
+
+  /**
+   * Reference to the backing buffer for frozen-view bitmaps.
+   * Keeps the buffer alive so the C pointer remains valid.
+   */
+  #backingBuffer: ArrayBuffer | Uint8Array | null = null;
 
   /**
    * Create a new empty bitmap, or wrap an existing pointer.
@@ -892,6 +901,66 @@ export class RoaringBitmap32 {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
     const ptr = roaring_bitmap_deserialize_safe(b, maxBytes);
     return ptr ? new RoaringBitmap32(ptr) : null;
+  }
+
+  // ---- frozen serialization (zero-copy view) -------------------------
+
+  /**
+   * Number of bytes required for frozen serialization.
+   *
+   * Wraps `roaring_bitmap_frozen_size_in_bytes`. The frozen format
+   * imitates the in-memory layout for zero-copy deserialization.
+   * Call `shrinkToFit()` first for optimal size.
+   */
+  get frozenSizeInBytes(): number {
+    return Number(roaring_bitmap_frozen_size_in_bytes(this.#ptr));
+  }
+
+  /**
+   * Serialize to a frozen (zero-copy) buffer.
+   *
+   * Wraps `roaring_bitmap_frozen_serialize`. The resulting buffer
+   * can be stored and later used with `frozenView()` for O(1)
+   * zero-copy deserialization. Call `shrinkToFit()` first.
+   */
+  frozenSerialize(): Uint8Array {
+    const n = Number(roaring_bitmap_frozen_size_in_bytes(this.#ptr));
+    const buf = new Uint8Array(n);
+    roaring_bitmap_frozen_serialize(this.#ptr, buf);
+    return buf;
+  }
+
+  /**
+   * Create a read-only bitmap backed by a frozen-serialized buffer.
+   *
+   * Wraps `roaring_bitmap_frozen_view`. The bitmap is a direct view
+   * of the buffer — no parsing, no copying. The buffer must remain
+   * alive for the lifetime of the bitmap (this is ensured by keeping
+   * a reference to it).
+   *
+   * The bitmap is read-only. Calling mutation methods like `add()`
+   * or `remove()` on a frozen-view bitmap will crash.
+   *
+   * @example
+   * ```ts
+   * const buf = await Bun.file("bitmap.bin").bytes();
+   * using bm = RoaringBitmap32.frozenView(buf);
+   * console.log(bm.has(42)); // true
+   * ```
+   */
+  static frozenView(buffer: Uint8Array, options?: { offset?: number; length?: number }): RoaringBitmap32 {
+    const offset = options?.offset ?? 0;
+    const length = options?.length ?? buffer.length - offset;
+    // Take a subarray so the reference keeps the whole buffer alive
+    const slice = offset === 0 && length === buffer.length
+      ? buffer
+      : buffer.subarray(offset, offset + length);
+    const ptr = roaring_bitmap_frozen_view(slice, length);
+    // frozen_view returns NULL for empty bitmaps — create a fresh empty one
+    if (!ptr) return new RoaringBitmap32();
+    const bm = new RoaringBitmap32(ptr);
+    bm.#backingBuffer = slice.buffer || slice;
+    return bm;
   }
 
   // ---- optimization ---------------------------------------------------
