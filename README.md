@@ -306,16 +306,16 @@ query.isSubsetOf(bm);
 
 | Batch size | per-value `has()` | `isSubsetOf` | speedup |
 |---|---|---|---|
-| 128 | 43 ns | 14 ns | 3× |
-| 256 | 51 ns | 11 ns | 5× |
-| 512 | 47 ns | 9 ns | 5× |
-| 1,024 | 48 ns | 8 ns | 6× |
-| 2,048 | 47 ns | 7 ns | 6× |
-| 4,096 | 48 ns | 7 ns | 7× |
-| 8,192 | 48 ns | 8 ns | 6× |
-| 16,384 | 48 ns | 8 ns | 6× |
-| 32,768 | 46 ns | 7 ns | 7× |
-| 65,536 | 48 ns | 6 ns | 8× |
+| 128 | 42.7 ns | 13.6 ns | 3.1× |
+| 256 | 50.6 ns | 10.9 ns | 4.6× |
+| 512 | 47.4 ns | 8.9 ns | 5.3× |
+| 1,024 | 48.3 ns | 7.6 ns | 6.4× |
+| 2,048 | 46.7 ns | 7.3 ns | 6.4× |
+| 4,096 | 48.2 ns | 6.8 ns | 7.1× |
+| 8,192 | 47.7 ns | 7.8 ns | 6.1× |
+| 16,384 | 48.3 ns | 7.6 ns | 6.4× |
+| 32,768 | 46.2 ns | 6.5 ns | 7.1× |
+| 65,536 | 47.8 ns | 6.1 ns | 7.8× |
 
 Times are nanoseconds per element (minimum of 20 runs after warmup,
 inner loops timed at ~50ms per measurement). Per-value `has()` is
