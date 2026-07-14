@@ -182,6 +182,42 @@ describe("RoaringBitmap64", () => {
     bm.free();
   });
 
+  // ---- ranges ---------------------------------------------------------
+
+  test("ranges on empty bitmap", () => {
+    const bm = new RoaringBitmap64();
+    expect([...bm.ranges()]).toEqual([]);
+    bm.free();
+  });
+
+  test("ranges on single value", () => {
+    const bm = RoaringBitmap64.from([42n]);
+    expect([...bm.ranges()]).toEqual([{ start: 42n, end: 42n }]);
+    bm.free();
+  });
+
+  test("ranges on disjoint values", () => {
+    const bm = new RoaringBitmap64();
+    bm.addRange(0n, 10n);
+    bm.addRange(100n, 110n);
+    bm.add(500n);
+    const ranges = [...bm.ranges()];
+    expect(ranges).toEqual([
+      { start: 0n, end: 9n },
+      { start: 100n, end: 109n },
+      { start: 500n, end: 500n },
+    ]);
+    bm.free();
+  });
+
+  test("ranges after runOptimize", () => {
+    const bm = RoaringBitmap64.fromRange(0n, 1_000_000n);
+    bm.runOptimize();
+    const ranges = [...bm.ranges()];
+    expect(ranges).toEqual([{ start: 0n, end: 999_999n }]);
+    bm.free();
+  });
+
   test("copy", () => {
     const orig = RoaringBitmap64.from([1n, 2n, 3n]);
     const copy = RoaringBitmap64.copy(orig);

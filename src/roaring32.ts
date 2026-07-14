@@ -89,6 +89,7 @@ import {
   roaring_iterator_create,
   roaring_uint32_iterator_free,
   roaring_uint32_iterator_advance,
+  roaring_uint32_iterator_read_ranges,
   roaring_bitmap_contains_bulk,
 } from "./ffi.ts";
 
@@ -828,6 +829,36 @@ export class RoaringBitmap32 {
     const out = new Uint32Array(limit);
     const ok = roaring_bitmap_range_uint32_array(this.#ptr, offset, limit, out);
     return { values: out, count: ok ? limit : 0 };
+  }
+
+  /**
+   * Iterate over the bitmap as contiguous ranges `{ start, end }`
+   * (both endpoints **inclusive**).
+   *
+   * Uses the C `roaring_uint32_iterator_read_ranges` to read
+   * `(min, max)` pairs in batches — much more efficient than
+   * clustering individual values in JS.
+   *
+   * ```ts
+   * for (const { start, end } of bm.ranges()) {
+   *   console.log(`[${start}, ${end}]  length: ${end - start + 1}`);
+   * }
+   * ```
+   */
+  *ranges(): IterableIterator<{ start: number; end: number }> {
+    const it = roaring_iterator_create(this.#ptr);
+    try {
+      const batch = new Uint32Array(256); // 128 ranges × 2
+      while (true) {
+        const count = Number(roaring_uint32_iterator_read_ranges(it, batch, 128));
+        if (count === 0) break;
+        for (let i = 0; i < count; i++) {
+          yield { start: batch[i * 2], end: batch[i * 2 + 1] };
+        }
+      }
+    } finally {
+      roaring_uint32_iterator_free(it);
+    }
   }
 
   // ---- serialization (portable, cross-language) -----------------------

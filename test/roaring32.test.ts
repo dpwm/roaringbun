@@ -428,6 +428,55 @@ describe("RoaringBitmap32", () => {
     bm.free();
   });
 
+  // ---- ranges ---------------------------------------------------------
+
+  test("ranges on empty bitmap", () => {
+    const bm = new RoaringBitmap32();
+    expect([...bm.ranges()]).toEqual([]);
+    bm.free();
+  });
+
+  test("ranges on single value", () => {
+    const bm = RoaringBitmap32.from([42]);
+    expect([...bm.ranges()]).toEqual([{ start: 42, end: 42 }]);
+    bm.free();
+  });
+
+  test("ranges on contiguous block", () => {
+    const bm = RoaringBitmap32.fromRange(0, 100);
+    expect([...bm.ranges()]).toEqual([{ start: 0, end: 99 }]);
+    bm.free();
+  });
+
+  test("ranges on disjoint values", () => {
+    const bm = new RoaringBitmap32();
+    bm.addRange(0, 10);
+    bm.addRange(20, 30);
+    bm.add(50);
+    const ranges = [...bm.ranges()];
+    expect(ranges).toEqual([
+      { start: 0, end: 9 },
+      { start: 20, end: 29 },
+      { start: 50, end: 50 },
+    ]);
+    bm.free();
+  });
+
+  test("ranges after runOptimize", () => {
+    const bm = RoaringBitmap32.fromRange(0, 1_000_000);
+    bm.runOptimize();
+    expect([...bm.ranges()]).toEqual([{ start: 0, end: 999_999 }]);
+    bm.free();
+  });
+
+  test("ranges across container boundary", () => {
+    const bm = new RoaringBitmap32();
+    bm.addRange(0xFF00, 0x10100); // spans 0xFFFF → 0x10000 boundary
+    const ranges = [...bm.ranges()];
+    expect(ranges).toEqual([{ start: 0xFF00, end: 0x100FF }]);
+    bm.free();
+  });
+
   // -----------------------------------------------------------------------
   // Serialization
   // -----------------------------------------------------------------------
