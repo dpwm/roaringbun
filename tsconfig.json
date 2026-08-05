@@ -5,6 +5,8 @@
     "moduleResolution": "bundler",
     "strict": true,
     "declaration": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "outDir": "dist",
     "rootDir": "src",
     "skipLibCheck": true,

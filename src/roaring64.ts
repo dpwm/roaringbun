@@ -5,7 +5,7 @@
  * and frees it via FinalizationRegistry or explicit `.free()`.
  */
 
-import { CString } from "bun:ffi";
+import { CString, type Pointer } from "bun:ffi";
 
 import {
   roaring64_bitmap_create,
@@ -134,13 +134,16 @@ export class BulkContext64 {
 
 // ---- 64-bit iterator ---------------------------------------------------
 
+/** Null pointer sentinel (`roaring64_iterator_t` is freed, then set to 0). */
+const NULL_PTR = 0 as number as Pointer;
+
 export class RoaringBitmap64Iterator implements Iterator<bigint> {
   /** Pointer to the C `roaring64_iterator_t`. 0 once exhausted. */
-  #it: number;
+  #it: Pointer;
   #started = false;
 
   constructor(bitmap: RoaringBitmap64) {
-    this.#it = roaring64_iterator_create(bitmap.ptr);
+    this.#it = roaring64_iterator_create(bitmap.ptr) ?? NULL_PTR;
   }
 
   next(): IteratorResult<bigint> {
@@ -158,7 +161,7 @@ export class RoaringBitmap64Iterator implements Iterator<bigint> {
     }
 
     roaring64_iterator_free(this.#it);
-    this.#it = 0;
+    this.#it = NULL_PTR;
     return { value: undefined as any, done: true };
   }
 
@@ -169,7 +172,7 @@ export class RoaringBitmap64Iterator implements Iterator<bigint> {
 
 // ---- FinalizationRegistry ----------------------------------------------
 
-const finalizers = new FinalizationRegistry((ptr: number) => {
+const finalizers = new FinalizationRegistry((ptr: Pointer) => {
   roaring64_bitmap_free(ptr);
 });
 
@@ -177,10 +180,10 @@ const finalizers = new FinalizationRegistry((ptr: number) => {
 
 export class RoaringBitmap64 {
   /** Opaque pointer to the C `roaring64_bitmap_t` */
-  readonly #ptr: number;
+  readonly #ptr: Pointer;
 
   /** Reference to the backing buffer for frozen-view bitmaps. */
-  #backingBuffer: ArrayBuffer | Uint8Array | null = null;
+  #backingBuffer: ArrayBufferLike | Uint8Array | null = null;
 
   /**
    * Create a new empty 64-bit bitmap, or wrap an existing pointer.
@@ -191,18 +194,17 @@ export class RoaringBitmap64 {
    */
   constructor(ptr?: number) {
     if (typeof ptr === "number") {
-      this.#ptr = ptr;
+      this.#ptr = ptr as Pointer;
     } else {
-      this.#ptr = roaring64_bitmap_create();
-      if (this.#ptr === 0 || this.#ptr === null) {
-        throw new Error("RoaringBitmap64: failed to allocate bitmap");
-      }
+      const p = roaring64_bitmap_create();
+      if (!p) throw new Error("RoaringBitmap64: failed to allocate bitmap");
+      this.#ptr = p;
     }
     finalizers.register(this, this.#ptr, this);
   }
 
   /** The raw pointer (for advanced interop). */
-  get ptr(): number {
+  get ptr(): Pointer {
     return this.#ptr;
   }
 
@@ -439,7 +441,7 @@ export class RoaringBitmap64 {
    * (Set-compatible name; also available as `and`.)
    */
   intersection(other: RoaringBitmap64): RoaringBitmap64 {
-    return new RoaringBitmap64(roaring64_bitmap_and(this.#ptr, other.#ptr));
+    return new RoaringBitmap64(roaring64_bitmap_and(this.#ptr, other.#ptr)!);
   }
 
   /** @alias intersection */
@@ -454,7 +456,7 @@ export class RoaringBitmap64 {
    * (Set-compatible name; also available as `or`.)
    */
   union(other: RoaringBitmap64): RoaringBitmap64 {
-    return new RoaringBitmap64(roaring64_bitmap_or(this.#ptr, other.#ptr));
+    return new RoaringBitmap64(roaring64_bitmap_or(this.#ptr, other.#ptr)!);
   }
 
   /** @alias union */
@@ -469,7 +471,7 @@ export class RoaringBitmap64 {
    * (Set-compatible name; also available as `xor`.)
    */
   symmetricDifference(other: RoaringBitmap64): RoaringBitmap64 {
-    return new RoaringBitmap64(roaring64_bitmap_xor(this.#ptr, other.#ptr));
+    return new RoaringBitmap64(roaring64_bitmap_xor(this.#ptr, other.#ptr)!);
   }
 
   /** @alias symmetricDifference */
@@ -484,7 +486,7 @@ export class RoaringBitmap64 {
    * (Set-compatible name; also available as `andnot`.)
    */
   difference(other: RoaringBitmap64): RoaringBitmap64 {
-    return new RoaringBitmap64(roaring64_bitmap_andnot(this.#ptr, other.#ptr));
+    return new RoaringBitmap64(roaring64_bitmap_andnot(this.#ptr, other.#ptr)!);
   }
 
   /** @alias difference */
@@ -593,7 +595,7 @@ export class RoaringBitmap64 {
    */
   flip(min: bigint | number, max: bigint | number): RoaringBitmap64 {
     return new RoaringBitmap64(
-      roaring64_bitmap_flip(this.#ptr, BigInt(min), BigInt(max)),
+      roaring64_bitmap_flip(this.#ptr, BigInt(min), BigInt(max))!,
     );
   }
 
@@ -611,7 +613,7 @@ export class RoaringBitmap64 {
    */
   addOffset(offset: bigint | number, positive = true): RoaringBitmap64 {
     return new RoaringBitmap64(
-      roaring64_bitmap_add_offset_signed(this.#ptr, positive, BigInt(offset)),
+      roaring64_bitmap_add_offset_signed(this.#ptr, positive, BigInt(offset))!,
     );
   }
 
@@ -687,7 +689,7 @@ export class RoaringBitmap64 {
    * ```
    */
   *ranges(): IterableIterator<{ start: bigint; end: bigint }> {
-    const it = roaring64_iterator_create(this.#ptr);
+    const it = roaring64_iterator_create(this.#ptr)!;
     try {
       const batch = new BigUint64Array(256); // 128 ranges × 2
       while (true) {
@@ -734,10 +736,7 @@ export class RoaringBitmap64 {
    */
   static portableDeserializeSafe(buf: ArrayBuffer | Uint8Array): RoaringBitmap64 | null {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    const ptr = roaring64_bitmap_portable_deserialize_safe(
-      b as unknown as string,
-      b.length,
-    );
+    const ptr = roaring64_bitmap_portable_deserialize_safe(b, b.length);
     return ptr ? new RoaringBitmap64(ptr) : null;
   }
 
@@ -824,7 +823,7 @@ export class RoaringBitmap64 {
     const reasonBuf = new BigUint64Array(1);
     const valid = roaring64_bitmap_internal_validate(this.#ptr, reasonBuf);
     const reasonPtr = Number(reasonBuf[0]);
-    const reason = reasonPtr !== 0 ? String(new CString(reasonPtr)) : null;
+    const reason = reasonPtr !== 0 ? String(new CString(reasonPtr as Pointer)) : null;
     return { valid, reason };
   }
 

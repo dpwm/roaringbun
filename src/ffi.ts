@@ -5,7 +5,7 @@
  * function via `bun:ffi`'s `dlopen`.
  */
 
-import { dlopen, FFIType, ptr, read, toArrayBuffer, suffix } from "bun:ffi";
+import { dlopen, FFIType, ptr as ptrFn, read, toArrayBuffer, suffix } from "bun:ffi";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
@@ -42,7 +42,7 @@ function libraryPath(): string {
 
 // ---- type shorthand ----------------------------------------------------
 
-const { ptr, u8, u16, u32, u64, i64, f64, bool, cstring, usize, void: void_ } = FFIType;
+const { ptr, u8, u16, u32, u64, i64, f64, bool, cstring, void: void_ } = FFIType;
 
 // ---- symbol table ------------------------------------------------------
 
@@ -57,13 +57,13 @@ const LIB = dlopen(libraryPath(), {
   // --- add / remove / contains ---
   roaring_bitmap_add:                   { args: [ptr, u32],                                  returns: void_ },
   roaring_bitmap_add_checked:           { args: [ptr, u32],                                  returns: bool },
-  roaring_bitmap_add_many:              { args: [ptr, usize, ptr],                           returns: void_ },
+  roaring_bitmap_add_many:              { args: [ptr, u64, ptr],                           returns: void_ },
   roaring_bitmap_add_bulk:              { args: [ptr, ptr, u32],                             returns: void_ },
   roaring_bitmap_add_range:             { args: [ptr, u64, u64],                             returns: void_ },
   roaring_bitmap_add_range_closed:      { args: [ptr, u32, u32],                             returns: void_ },
   roaring_bitmap_remove:                { args: [ptr, u32],                                  returns: void_ },
   roaring_bitmap_remove_checked:        { args: [ptr, u32],                                  returns: bool },
-  roaring_bitmap_remove_many:           { args: [ptr, usize, ptr],                           returns: void_ },
+  roaring_bitmap_remove_many:           { args: [ptr, u64, ptr],                           returns: void_ },
   roaring_bitmap_remove_range:          { args: [ptr, u64, u64],                             returns: void_ },
   roaring_bitmap_remove_range_closed:   { args: [ptr, u32, u32],                             returns: void_ },
   roaring_bitmap_contains:              { args: [ptr, u32],                                  returns: bool },
@@ -120,37 +120,37 @@ const LIB = dlopen(libraryPath(), {
 
   // --- from values ---
   roaring_bitmap_from_range:            { args: [u64, u64, u32],                             returns: ptr },
-  roaring_bitmap_of_ptr:                { args: [usize, ptr],                                returns: ptr },
-  roaring_bitmap_or_many:               { args: [usize, ptr],                                returns: ptr },
+  roaring_bitmap_of_ptr:                { args: [u64, ptr],                                returns: ptr },
+  roaring_bitmap_or_many:               { args: [u64, ptr],                                returns: ptr },
   roaring_bitmap_or_many_heap:          { args: [u32, ptr],                                  returns: ptr },
-  roaring_bitmap_xor_many:              { args: [usize, ptr],                                returns: ptr },
+  roaring_bitmap_xor_many:              { args: [u64, ptr],                                returns: ptr },
 
   // --- convert to array ---
   roaring_bitmap_to_uint32_array:       { args: [ptr, ptr],                                  returns: void_ },
-  roaring_bitmap_range_uint32_array:    { args: [ptr, usize, usize, ptr],                    returns: bool },
+  roaring_bitmap_range_uint32_array:    { args: [ptr, u64, u64, ptr],                    returns: bool },
 
   // --- serialization (native format) ---
-  roaring_bitmap_size_in_bytes:         { args: [ptr],                                       returns: usize },
-  roaring_bitmap_serialize:             { args: [ptr, ptr],                               returns: usize },
+  roaring_bitmap_size_in_bytes:         { args: [ptr],                                       returns: u64 },
+  roaring_bitmap_serialize:             { args: [ptr, ptr],                               returns: u64 },
   roaring_bitmap_deserialize:           { args: [ptr],                                       returns: ptr },
-  roaring_bitmap_deserialize_safe:      { args: [ptr, usize],                                returns: ptr },
+  roaring_bitmap_deserialize_safe:      { args: [ptr, u64],                                returns: ptr },
 
   // --- serialization (portable / cross-language) ---
-  roaring_bitmap_portable_size_in_bytes: { args: [ptr],                                      returns: usize },
-  roaring_bitmap_portable_serialize:     { args: [ptr, ptr],                              returns: usize },
+  roaring_bitmap_portable_size_in_bytes: { args: [ptr],                                      returns: u64 },
+  roaring_bitmap_portable_serialize:     { args: [ptr, ptr],                              returns: u64 },
   roaring_bitmap_portable_deserialize:   { args: [cstring],                                  returns: ptr },
-  roaring_bitmap_portable_deserialize_safe: { args: [cstring, usize],                        returns: ptr },
-  roaring_bitmap_portable_deserialize_size: { args: [cstring, usize],                        returns: usize },
+  roaring_bitmap_portable_deserialize_safe: { args: [cstring, u64],                        returns: ptr },
+  roaring_bitmap_portable_deserialize_size: { args: [cstring, u64],                        returns: u64 },
 
   // --- frozen serialization ---
-  roaring_bitmap_frozen_size_in_bytes:  { args: [ptr],                                       returns: usize },
+  roaring_bitmap_frozen_size_in_bytes:  { args: [ptr],                                       returns: u64 },
   roaring_bitmap_frozen_serialize:      { args: [ptr, ptr],                               returns: void_ },
-  roaring_bitmap_frozen_view:           { args: [ptr, usize],                             returns: ptr },
+  roaring_bitmap_frozen_view:           { args: [ptr, u64],                             returns: ptr },
 
   // --- optimization ---
   roaring_bitmap_run_optimize:          { args: [ptr],                                       returns: bool },
   roaring_bitmap_remove_run_compression: { args: [ptr],                                      returns: bool },
-  roaring_bitmap_shrink_to_fit:         { args: [ptr],                                       returns: usize },
+  roaring_bitmap_shrink_to_fit:         { args: [ptr],                                       returns: u64 },
 
   // --- copy-on-write ---
   roaring_bitmap_get_copy_on_write:     { args: [ptr],                                       returns: bool },
@@ -175,8 +175,8 @@ const LIB = dlopen(libraryPath(), {
   roaring_uint32_iterator_move_equalorlarger: { args: [ptr, u32],                           returns: bool },
   roaring_uint32_iterator_read:        { args: [ptr, ptr, u32],                              returns: u32 },
   roaring_uint32_iterator_read_backward: { args: [ptr, ptr, u32],                            returns: u32 },
-  roaring_uint32_iterator_read_ranges: { args: [ptr, ptr, usize],                           returns: usize },
-  roaring_uint32_iterator_read_prev_ranges: { args: [ptr, ptr, usize],                      returns: usize },
+  roaring_uint32_iterator_read_ranges: { args: [ptr, ptr, u64],                           returns: u64 },
+  roaring_uint32_iterator_read_prev_ranges: { args: [ptr, ptr, u64],                      returns: u64 },
   roaring_uint32_iterator_skip:        { args: [ptr, u32],                                   returns: u32 },
   roaring_uint32_iterator_skip_backward: { args: [ptr, u32],                                 returns: u32 },
   roaring_iterate:                     { args: [ptr, ptr, ptr],                              returns: bool },
@@ -196,13 +196,13 @@ const LIB = dlopen(libraryPath(), {
   // --- add / remove / contains ---
   roaring64_bitmap_add:                { args: [ptr, u64],                                   returns: void_ },
   roaring64_bitmap_add_checked:        { args: [ptr, u64],                                   returns: bool },
-  roaring64_bitmap_add_many:           { args: [ptr, usize, ptr],                            returns: void_ },
+  roaring64_bitmap_add_many:           { args: [ptr, u64, ptr],                            returns: void_ },
   roaring64_bitmap_add_bulk:           { args: [ptr, ptr, u64],                              returns: void_ },
   roaring64_bitmap_add_range:          { args: [ptr, u64, u64],                              returns: void_ },
   roaring64_bitmap_add_range_closed:   { args: [ptr, u64, u64],                              returns: void_ },
   roaring64_bitmap_remove:             { args: [ptr, u64],                                   returns: void_ },
   roaring64_bitmap_remove_checked:     { args: [ptr, u64],                                   returns: bool },
-  roaring64_bitmap_remove_many:        { args: [ptr, usize, ptr],                            returns: void_ },
+  roaring64_bitmap_remove_many:        { args: [ptr, u64, ptr],                            returns: void_ },
   roaring64_bitmap_remove_bulk:        { args: [ptr, ptr, u64],                              returns: void_ },
   roaring64_bitmap_remove_range:       { args: [ptr, u64, u64],                              returns: void_ },
   roaring64_bitmap_remove_range_closed: { args: [ptr, u64, u64],                             returns: void_ },
@@ -250,27 +250,27 @@ const LIB = dlopen(libraryPath(), {
   roaring64_bitmap_add_offset_signed:  { args: [ptr, bool, u64],                             returns: ptr },
 
   // --- from values ---
-  roaring64_bitmap_of_ptr:             { args: [usize, ptr],                                 returns: ptr },
+  roaring64_bitmap_of_ptr:             { args: [u64, ptr],                                 returns: ptr },
   roaring64_bitmap_from_range:         { args: [u64, u64, u64],                              returns: ptr },
 
   // --- convert to array ---
   roaring64_bitmap_to_uint64_array:    { args: [ptr, ptr],                                   returns: void_ },
 
   // --- serialization (portable) ---
-  roaring64_bitmap_portable_size_in_bytes: { args: [ptr],                                    returns: usize },
-  roaring64_bitmap_portable_serialize:     { args: [ptr, ptr],                            returns: usize },
-  roaring64_bitmap_portable_deserialize_safe: { args: [cstring, usize],                      returns: ptr },
-  roaring64_bitmap_portable_deserialize_size: { args: [cstring, usize],                      returns: usize },
+  roaring64_bitmap_portable_size_in_bytes: { args: [ptr],                                    returns: u64 },
+  roaring64_bitmap_portable_serialize:     { args: [ptr, ptr],                            returns: u64 },
+  roaring64_bitmap_portable_deserialize_safe: { args: [cstring, u64],                      returns: ptr },
+  roaring64_bitmap_portable_deserialize_size: { args: [cstring, u64],                      returns: u64 },
 
   // --- frozen serialization ---
-  roaring64_bitmap_frozen_size_in_bytes: { args: [ptr],                                      returns: usize },
-  roaring64_bitmap_frozen_serialize:     { args: [ptr, ptr],                              returns: usize },
-  roaring64_bitmap_frozen_view:          { args: [ptr, usize],                            returns: ptr },
+  roaring64_bitmap_frozen_size_in_bytes: { args: [ptr],                                      returns: u64 },
+  roaring64_bitmap_frozen_serialize:     { args: [ptr, ptr],                              returns: u64 },
+  roaring64_bitmap_frozen_view:          { args: [ptr, u64],                            returns: ptr },
 
   // --- optimization ---
   roaring64_bitmap_run_optimize:         { args: [ptr],                                      returns: bool },
   roaring64_bitmap_remove_run_compression: { args: [ptr],                                    returns: bool },
-  roaring64_bitmap_shrink_to_fit:        { args: [ptr],                                      returns: usize },
+  roaring64_bitmap_shrink_to_fit:        { args: [ptr],                                      returns: u64 },
 
   // --- statistics ---
   roaring64_bitmap_statistics:           { args: [ptr, ptr],                                 returns: void_ },
@@ -288,8 +288,8 @@ const LIB = dlopen(libraryPath(), {
   roaring64_iterator_move_equalorlarger: { args: [ptr, u64],                                 returns: bool },
   roaring64_iterator_read:               { args: [ptr, ptr, u64],                            returns: u64 },
   roaring64_iterator_read_backward:      { args: [ptr, ptr, u64],                            returns: u64 },
-  roaring64_iterator_read_ranges:        { args: [ptr, ptr, usize],                          returns: usize },
-  roaring64_iterator_read_prev_ranges:   { args: [ptr, ptr, usize],                          returns: usize },
+  roaring64_iterator_read_ranges:        { args: [ptr, ptr, u64],                          returns: u64 },
+  roaring64_iterator_read_prev_ranges:   { args: [ptr, ptr, u64],                          returns: u64 },
   roaring64_iterator_reinit:             { args: [ptr, ptr],                                 returns: void_ },
   roaring64_iterator_reinit_last:        { args: [ptr, ptr],                                 returns: void_ },
   roaring64_bitmap_iterate:              { args: [ptr, ptr, ptr],                            returns: bool },
@@ -298,7 +298,7 @@ const LIB = dlopen(libraryPath(), {
 // ---- typed exports -----------------------------------------------------
 
 /** Convenience re-export of helpers from `bun:ffi`. */
-export { read, toArrayBuffer, ptr, FFIType } from "bun:ffi";
+export { read, toArrayBuffer, FFIType, ptrFn as ptr };
 
 /** Dictionary of every raw FFI function. */
 export const symbols = LIB.symbols;

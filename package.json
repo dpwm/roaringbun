@@ -15,6 +15,7 @@
   },
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target=bun",
+    "check": "tsc --noEmit",
     "prebuild": "cd CRoaring/build && cmake .. -DBUILD_SHARED_LIBS=ON -DENABLE_ROARING_TESTS=OFF && cmake --build . -j$(nproc)",
     "test": "bun test"
   },

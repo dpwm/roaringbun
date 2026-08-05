@@ -7,7 +7,7 @@
  * `.free()` is called explicitly.
  */
 
-import { CString } from "bun:ffi";
+import { CString, type Pointer } from "bun:ffi";
 
 import {
   roaring_bitmap_create,
@@ -153,13 +153,16 @@ const ITER32_HASVAL_OFF = 36;
 
 // ---- 32-bit iterator ---------------------------------------------------
 
+/** Null pointer sentinel (`roaring_iterator_t` is freed, then set to 0). */
+const NULL_PTR = 0 as number as Pointer;
+
 export class RoaringBitmap32Iterator implements Iterator<number> {
   /** Pointer to the C `roaring_uint32_iterator_t`. 0 once exhausted. */
-  #it: number;
+  #it: Pointer;
   #started = false;
 
   constructor(bitmap: RoaringBitmap32) {
-    this.#it = roaring_iterator_create(bitmap.ptr);
+    this.#it = roaring_iterator_create(bitmap.ptr) ?? NULL_PTR;
   }
 
   next(): IteratorResult<number> {
@@ -177,7 +180,7 @@ export class RoaringBitmap32Iterator implements Iterator<number> {
     }
 
     roaring_uint32_iterator_free(this.#it);
-    this.#it = 0;
+    this.#it = NULL_PTR;
     return { value: undefined as any, done: true };
   }
 
@@ -188,7 +191,7 @@ export class RoaringBitmap32Iterator implements Iterator<number> {
 
 // ---- FinalizationRegistry ----------------------------------------------
 
-const finalizers = new FinalizationRegistry((ptr: number) => {
+const finalizers = new FinalizationRegistry((ptr: Pointer) => {
   roaring_bitmap_free(ptr);
 });
 
@@ -196,13 +199,13 @@ const finalizers = new FinalizationRegistry((ptr: number) => {
 
 export class RoaringBitmap32 {
   /** Opaque pointer to the C `roaring_bitmap_t` */
-  readonly #ptr: number;
+  readonly #ptr: Pointer;
 
   /**
    * Reference to the backing buffer for frozen-view bitmaps.
    * Keeps the buffer alive so the C pointer remains valid.
    */
-  #backingBuffer: ArrayBuffer | Uint8Array | null = null;
+  #backingBuffer: ArrayBufferLike | Uint8Array | null = null;
 
   /**
    * Create a new empty bitmap, or wrap an existing pointer.
@@ -213,22 +216,21 @@ export class RoaringBitmap32 {
    */
   constructor(arg?: number | RoaringBitmap32Opts) {
     if (typeof arg === "number") {
-      this.#ptr = arg;
+      this.#ptr = arg as Pointer;
     } else {
       const cap = arg?.capacity ?? 0;
-      this.#ptr =
+      const p =
         cap > 0
           ? roaring_bitmap_create_with_capacity(cap)
           : roaring_bitmap_create();
-      if (this.#ptr === 0 || this.#ptr === null) {
-        throw new Error("RoaringBitmap32: failed to allocate bitmap");
-      }
+      if (!p) throw new Error("RoaringBitmap32: failed to allocate bitmap");
+      this.#ptr = p;
     }
     finalizers.register(this, this.#ptr, this);
   }
 
   /** The raw pointer (for advanced interop). */
-  get ptr(): number {
+  get ptr(): Pointer {
     return this.#ptr;
   }
 
@@ -380,7 +382,7 @@ export class RoaringBitmap32 {
    */
   hasAll(values: readonly number[] | Uint32Array): boolean {
     const buf = values instanceof Uint32Array ? values : new Uint32Array(values);
-    const query = roaring_bitmap_of_ptr(buf.length, buf);
+    const query = roaring_bitmap_of_ptr(buf.length, buf)!;
     const result = roaring_bitmap_is_subset(query, this.#ptr);
     roaring_bitmap_free(query);
     return result;
@@ -496,7 +498,7 @@ export class RoaringBitmap32 {
    */
   intersection(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_and(this.#ptr, other.#ptr);
-    return new RoaringBitmap32(ptr);
+    return new RoaringBitmap32(ptr!);
   }
 
   /** @alias intersection */
@@ -514,7 +516,7 @@ export class RoaringBitmap32 {
    */
   union(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_or(this.#ptr, other.#ptr);
-    return new RoaringBitmap32(ptr);
+    return new RoaringBitmap32(ptr!);
   }
 
   /** @alias union */
@@ -532,7 +534,7 @@ export class RoaringBitmap32 {
    */
   symmetricDifference(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_xor(this.#ptr, other.#ptr);
-    return new RoaringBitmap32(ptr);
+    return new RoaringBitmap32(ptr!);
   }
 
   /** @alias symmetricDifference */
@@ -550,7 +552,7 @@ export class RoaringBitmap32 {
    */
   difference(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_andnot(this.#ptr, other.#ptr);
-    return new RoaringBitmap32(ptr);
+    return new RoaringBitmap32(ptr!);
   }
 
   /** @alias difference */
@@ -680,7 +682,7 @@ export class RoaringBitmap32 {
    */
   lazyOr(other: RoaringBitmap32, bitsetConversion = false): RoaringBitmap32 {
     const ptr = roaring_bitmap_lazy_or(this.#ptr, other.#ptr, bitsetConversion);
-    return new RoaringBitmap32(ptr);
+    return new RoaringBitmap32(ptr!);
   }
 
   /**
@@ -701,7 +703,7 @@ export class RoaringBitmap32 {
    */
   lazyXor(other: RoaringBitmap32): RoaringBitmap32 {
     const ptr = roaring_bitmap_lazy_xor(this.#ptr, other.#ptr);
-    return new RoaringBitmap32(ptr);
+    return new RoaringBitmap32(ptr!);
   }
 
   /**
@@ -778,7 +780,7 @@ export class RoaringBitmap32 {
    */
   flip(min: number, max: number): RoaringBitmap32 {
     const ptr = roaring_bitmap_flip(this.#ptr, min, max);
-    return new RoaringBitmap32(ptr);
+    return new RoaringBitmap32(ptr!);
   }
 
   /**
@@ -799,7 +801,7 @@ export class RoaringBitmap32 {
    */
   addOffset(offset: number): RoaringBitmap32 {
     const ptr = roaring_bitmap_add_offset(this.#ptr, offset);
-    return new RoaringBitmap32(ptr);
+    return new RoaringBitmap32(ptr!);
   }
 
   // ---- conversion -----------------------------------------------------
@@ -846,7 +848,7 @@ export class RoaringBitmap32 {
    * ```
    */
   *ranges(): IterableIterator<{ start: number; end: number }> {
-    const it = roaring_iterator_create(this.#ptr);
+    const it = roaring_iterator_create(this.#ptr)!;
     try {
       const batch = new Uint32Array(256); // 128 ranges × 2
       while (true) {
@@ -897,9 +899,7 @@ export class RoaringBitmap32 {
    */
   static portableDeserialize(buf: ArrayBuffer | Uint8Array): RoaringBitmap32 {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    const ptr = roaring_bitmap_portable_deserialize(
-      b as unknown as string,
-    );
+    const ptr = roaring_bitmap_portable_deserialize(b);
     if (!ptr) throw new Error("RoaringBitmap32.portableDeserialize: failed");
     return new RoaringBitmap32(ptr);
   }
@@ -913,10 +913,7 @@ export class RoaringBitmap32 {
    */
   static portableDeserializeSafe(buf: ArrayBuffer | Uint8Array): RoaringBitmap32 | null {
     const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-    const ptr = roaring_bitmap_portable_deserialize_safe(
-      b as unknown as string,
-      b.length,
-    );
+    const ptr = roaring_bitmap_portable_deserialize_safe(b, b.length);
     return ptr ? new RoaringBitmap32(ptr) : null;
   }
 
@@ -1131,7 +1128,7 @@ export class RoaringBitmap32 {
     const reasonBuf = new BigUint64Array(1);
     const valid = roaring_bitmap_internal_validate(this.#ptr, reasonBuf);
     const reasonPtr = Number(reasonBuf[0]);
-    const reason = reasonPtr !== 0 ? String(new CString(reasonPtr)) : null;
+    const reason = reasonPtr !== 0 ? String(new CString(reasonPtr as Pointer)) : null;
     return { valid, reason };
   }
 
